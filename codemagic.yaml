@@ -6,8 +6,6 @@ workflows:
     environment:
       node: 18
       npm_version: 10
-      android_signing:
-        - fitness_tracker_keystore
       groups:
         - expo
     cache:
