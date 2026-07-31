@@ -1,0 +1,80 @@
+import { Exercise } from '../types';
+
+export const defaultExercises: Exercise[] = [
+  // 胸部
+  { id: '1', name: '杠铃卧推', category: 'chest', muscleGroup: ['胸大肌', '三角肌前束', '肱三头肌'], equipment: 'barbell', isCustom: false, createdAt: Date.now() },
+  { id: '2', name: '哑铃卧推', category: 'chest', muscleGroup: ['胸大肌', '三角肌前束', '肱三头肌'], equipment: 'dumbbell', isCustom: false, createdAt: Date.now() },
+  { id: '3', name: '上斜杠铃卧推', category: 'chest', muscleGroup: ['胸大肌上部', '三角肌前束'], equipment: 'barbell', isCustom: false, createdAt: Date.now() },
+  { id: '4', name: '上斜哑铃卧推', category: 'chest', muscleGroup: ['胸大肌上部', '三角肌前束'], equipment: 'dumbbell', isCustom: false, createdAt: Date.now() },
+  { id: '5', name: '哑铃飞鸟', category: 'chest', muscleGroup: ['胸大肌'], equipment: 'dumbbell', isCustom: false, createdAt: Date.now() },
+  { id: '6', name: '绳索夹胸', category: 'chest', muscleGroup: ['胸大肌'], equipment: 'cable', isCustom: false, createdAt: Date.now() },
+  { id: '7', name: '俯卧撑', category: 'chest', muscleGroup: ['胸大肌', '三角肌前束', '肱三头肌'], equipment: 'bodyweight', isCustom: false, createdAt: Date.now() },
+  { id: '8', name: '双杠臂屈伸', category: 'chest', muscleGroup: ['胸大肌下部', '肱三头肌'], equipment: 'bodyweight', isCustom: false, createdAt: Date.now() },
+  
+  // 背部
+  { id: '9', name: '引体向上', category: 'back', muscleGroup: ['背阔肌', '肱二头肌', '菱形肌'], equipment: 'bodyweight', isCustom: false, createdAt: Date.now() },
+  { id: '10', name: '杠铃划船', category: 'back', muscleGroup: ['背阔肌', '斜方肌', '菱形肌', '肱二头肌'], equipment: 'barbell', isCustom: false, createdAt: Date.now() },
+  { id: '11', name: '哑铃划船', category: 'back', muscleGroup: ['背阔肌', '菱形肌', '肱二头肌'], equipment: 'dumbbell', isCustom: false, createdAt: Date.now() },
+  { id: '12', name: '高位下拉', category: 'back', muscleGroup: ['背阔肌', '肱二头肌'], equipment: 'machine', isCustom: false, createdAt: Date.now() },
+  { id: '13', name: '坐姿划船', category: 'back', muscleGroup: ['背阔肌', '菱形肌', '斜方肌'], equipment: 'machine', isCustom: false, createdAt: Date.now() },
+  { id: '14', name: '直臂下压', category: 'back', muscleGroup: ['背阔肌'], equipment: 'cable', isCustom: false, createdAt: Date.now() },
+  { id: '15', name: '硬拉', category: 'back', muscleGroup: ['背阔肌', '斜方肌', '竖脊肌', '臀大肌', '腘绳肌'], equipment: 'barbell', isCustom: false, createdAt: Date.now() },
+  { id: '16', name: '罗马尼亚硬拉', category: 'back', muscleGroup: ['腘绳肌', '臀大肌', '竖脊肌'], equipment: 'barbell', isCustom: false, createdAt: Date.now() },
+  
+  // 腿部
+  { id: '17', name: '深蹲', category: 'legs', muscleGroup: ['股四头肌', '臀大肌', '腘绳肌'], equipment: 'barbell', isCustom: false, createdAt: Date.now() },
+  { id: '18', name: '前蹲', category: 'legs', muscleGroup: ['股四头肌', '臀大肌'], equipment: 'barbell', isCustom: false, createdAt: Date.now() },
+  { id: '19', name: '腿举', category: 'legs', muscleGroup: ['股四头肌', '臀大肌'], equipment: 'machine', isCustom: false, createdAt: Date.now() },
+  { id: '20', name: '腿屈伸', category: 'legs', muscleGroup: ['股四头肌'], equipment: 'machine', isCustom: false, createdAt: Date.now() },
+  { id: '21', name: '腿弯举', category: 'legs', muscleGroup: ['腘绳肌'], equipment: 'machine', isCustom: false, createdAt: Date.now() },
+  { id: '22', name: '直腿硬拉', category: 'legs', muscleGroup: ['腘绳肌', '臀大肌'], equipment: 'barbell', isCustom: false, createdAt: Date.now() },
+  { id: '23', name: '臀推', category: 'legs', muscleGroup: ['臀大肌', '腘绳肌'], equipment: 'barbell', isCustom: false, createdAt: Date.now() },
+  { id: '24', name: '保加利亚分腿蹲', category: 'legs', muscleGroup: ['股四头肌', '臀大肌'], equipment: 'dumbbell', isCustom: false, createdAt: Date.now() },
+  { id: '25', name: '箭步蹲', category: 'legs', muscleGroup: ['股四头肌', '臀大肌'], equipment: 'dumbbell', isCustom: false, createdAt: Date.now() },
+  { id: '26', name: '小腿提踵', category: 'legs', muscleGroup: ['腓肠肌', '比目鱼肌'], equipment: 'machine', isCustom: false, createdAt: Date.now() },
+  
+  // 肩部
+  { id: '27', name: '杠铃推举', category: 'shoulders', muscleGroup: ['三角肌前束', '三角肌中束', '肱三头肌'], equipment: 'barbell', isCustom: false, createdAt: Date.now() },
+  { id: '28', name: '哑铃推举', category: 'shoulders', muscleGroup: ['三角肌前束', '三角肌中束', '肱三头肌'], equipment: 'dumbbell', isCustom: false, createdAt: Date.now() },
+  { id: '29', name: '侧平举', category: 'shoulders', muscleGroup: ['三角肌中束'], equipment: 'dumbbell', isCustom: false, createdAt: Date.now() },
+  { id: '30', name: '前平举', category: 'shoulders', muscleGroup: ['三角肌前束'], equipment: 'dumbbell', isCustom: false, createdAt: Date.now() },
+  { id: '31', name: '俯身飞鸟', category: 'shoulders', muscleGroup: ['三角肌后束'], equipment: 'dumbbell', isCustom: false, createdAt: Date.now() },
+  { id: '32', name: '面拉', category: 'shoulders', muscleGroup: ['三角肌后束', '菱形肌'], equipment: 'cable', isCustom: false, createdAt: Date.now() },
+  { id: '33', name: '哑铃耸肩', category: 'shoulders', muscleGroup: ['斜方肌'], equipment: 'dumbbell', isCustom: false, createdAt: Date.now() },
+  
+  // 手臂
+  { id: '34', name: '杠铃弯举', category: 'arms', muscleGroup: ['肱二头肌'], equipment: 'barbell', isCustom: false, createdAt: Date.now() },
+  { id: '35', name: '哑铃弯举', category: 'arms', muscleGroup: ['肱二头肌'], equipment: 'dumbbell', isCustom: false, createdAt: Date.now() },
+  { id: '36', name: '锤式弯举', category: 'arms', muscleGroup: ['肱二头肌', '肱肌'], equipment: 'dumbbell', isCustom: false, createdAt: Date.now() },
+  { id: '37', name: '集中弯举', category: 'arms', muscleGroup: ['肱二头肌'], equipment: 'dumbbell', isCustom: false, createdAt: Date.now() },
+  { id: '38', name: '杠铃臂屈伸', category: 'arms', muscleGroup: ['肱三头肌'], equipment: 'barbell', isCustom: false, createdAt: Date.now() },
+  { id: '39', name: '绳索下压', category: 'arms', muscleGroup: ['肱三头肌'], equipment: 'cable', isCustom: false, createdAt: Date.now() },
+  { id: '40', name: '仰卧臂屈伸', category: 'arms', muscleGroup: ['肱三头肌'], equipment: 'barbell', isCustom: false, createdAt: Date.now() },
+  { id: '41', name: '过顶臂屈伸', category: 'arms', muscleGroup: ['肱三头肌长头'], equipment: 'dumbbell', isCustom: false, createdAt: Date.now() },
+  { id: '42', name: '窄距卧推', category: 'arms', muscleGroup: ['肱三头肌', '胸大肌'], equipment: 'barbell', isCustom: false, createdAt: Date.now() },
+  
+  // 核心
+  { id: '43', name: '卷腹', category: 'core', muscleGroup: ['腹直肌'], equipment: 'bodyweight', isCustom: false, createdAt: Date.now() },
+  { id: '44', name: '平板支撑', category: 'core', muscleGroup: ['腹横肌', '腹直肌'], equipment: 'bodyweight', isCustom: false, createdAt: Date.now() },
+  { id: '45', name: '俄罗斯转体', category: 'core', muscleGroup: ['腹斜肌'], equipment: 'bodyweight', isCustom: false, createdAt: Date.now() },
+  { id: '46', name: '悬垂举腿', category: 'core', muscleGroup: ['腹直肌下部'], equipment: 'bodyweight', isCustom: false, createdAt: Date.now() },
+  { id: '47', name: '山羊挺身', category: 'core', muscleGroup: ['竖脊肌'], equipment: 'machine', isCustom: false, createdAt: Date.now() },
+];
+
+export const categoryLabels: Record<string, string> = {
+  chest: '胸部',
+  back: '背部',
+  legs: '腿部',
+  shoulders: '肩部',
+  arms: '手臂',
+  core: '核心',
+  cardio: '有氧'
+};
+
+export const equipmentLabels: Record<string, string> = {
+  barbell: '杠铃',
+  dumbbell: '哑铃',
+  machine: '器械',
+  bodyweight: '自重',
+  cable: '绳索'
+};
