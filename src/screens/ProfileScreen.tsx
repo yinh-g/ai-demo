@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
-import { Text, Card, Button, List, Divider, Avatar, Portal, Dialog } from 'react-native-paper';
+import { Text, Card, Button, List, Divider, Avatar, Portal, Dialog, TextInput } from 'react-native-paper';
 import { useAppStore } from '../store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -256,9 +256,21 @@ export default function ProfileScreen({ navigation }: any) {
             <Text style={styles.importWarning}>
               导入将覆盖当前所有数据，请确保已备份当前数据。
             </Text>
+            <TextInput
+              label="粘贴备份数据"
+              value={importData}
+              onChangeText={setImportData}
+              style={styles.importInput}
+              mode="outlined"
+              multiline
+              numberOfLines={6}
+              outlineColor="#E2E8F0"
+              activeOutlineColor="#6366F1"
+              placeholder="将备份的JSON数据粘贴到这里..."
+            />
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setShowImportDialog(false)} textColor="#64748B">取消</Button>
+            <Button onPress={() => { setShowImportDialog(false); setImportData(''); }} textColor="#64748B">取消</Button>
             <Button onPress={handleImport} mode="contained" style={{ borderRadius: 8, backgroundColor: '#6366F1' }}>
               确认导入
             </Button>
@@ -441,5 +453,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#EF4444',
     lineHeight: 20,
+    marginBottom: 12,
+  },
+  importInput: {
+    backgroundColor: '#fff',
+    fontSize: 13,
   },
 });
