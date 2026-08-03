@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
-import { Text, Card, Button, List, Divider } from 'react-native-paper';
+import { Text, Card, Button, List, Divider, Avatar } from 'react-native-paper';
 import { useAppStore } from '../store';
 
 export default function ProfileScreen({ navigation }: any) {
@@ -11,39 +11,58 @@ export default function ProfileScreen({ navigation }: any) {
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>👤 我的</Text>
+      <Text style={styles.title}>我的</Text>
 
       {/* 用户信息卡片 */}
-      <Card style={styles.card}>
+      <Card style={[styles.card, styles.userCard]}>
         <Card.Content>
           {userProfile ? (
             <>
-              <Text style={styles.userName}>
-                {userProfile.gender === 'male' ? '👨' : '👩'} 
-                {userProfile.age}岁 · {userProfile.weight}kg
-              </Text>
-              <Text style={styles.userDetail}>
-                训练年限: {userProfile.trainingYears}年
-              </Text>
-              <Text style={styles.userDetail}>
-                蛋白质摄入: {userProfile.proteinIntake}g/kg/天
-              </Text>
-              <Text style={styles.userDetail}>
-                睡眠: {userProfile.sleepHours}小时
-              </Text>
-              {userProfile.muscleGainGoal && (
-                <Text style={styles.goal}>
-                  增肌目标: {userProfile.muscleGainGoal}kg
-                </Text>
-              )}
+              <View style={styles.userHeader}>
+                <Avatar.Icon 
+                  size={64} 
+                  icon={userProfile.gender === 'male' ? 'face-man' : 'face-woman'} 
+                  style={styles.avatar}
+                  color="#fff"
+                />
+                <View style={styles.userInfo}>
+                  <Text style={styles.userName}>
+                    {userProfile.age}岁 · {userProfile.weight}kg
+                  </Text>
+                  <Text style={styles.userSubtitle}>
+                    训练年限: {userProfile.trainingYears}年
+                  </Text>
+                </View>
+              </View>
+              <Divider style={styles.divider} />
+              <View style={styles.detailRow}>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>蛋白质</Text>
+                  <Text style={styles.detailValue}>{userProfile.proteinIntake}g/kg</Text>
+                </View>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>睡眠</Text>
+                  <Text style={styles.detailValue}>{userProfile.sleepHours}小时</Text>
+                </View>
+                {userProfile.muscleGainGoal && (
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>目标</Text>
+                    <Text style={styles.detailValue}>{userProfile.muscleGainGoal}kg</Text>
+                  </View>
+                )}
+              </View>
             </>
           ) : (
-            <Text style={styles.noProfile}>尚未设置身体数据</Text>
+            <View style={styles.noProfile}>
+              <Avatar.Icon size={64} icon="account-off" style={styles.avatar} color="#fff" />
+              <Text style={styles.noProfileText}>尚未设置身体数据</Text>
+            </View>
           )}
           <Button
-            mode="outlined"
+            mode="contained"
             onPress={() => navigation.navigate('BodyData')}
             style={styles.editButton}
+            icon="pencil"
           >
             {userProfile ? '编辑身体数据' : '设置身体数据'}
           </Button>
@@ -51,19 +70,19 @@ export default function ProfileScreen({ navigation }: any) {
       </Card>
 
       {/* 统计概览 */}
-      <Card style={styles.card}>
+      <Card style={[styles.card, styles.statsCard]}>
         <Card.Content>
           <Text style={styles.sectionTitle}>训练统计</Text>
-          <View style={styles.statsRow}>
-            <View style={styles.stat}>
+          <View style={styles.statsGrid}>
+            <View style={[styles.statItem, styles.statItemBorder]}>
               <Text style={styles.statNumber}>{completedWorkouts.length}</Text>
               <Text style={styles.statLabel}>完成训练</Text>
             </View>
-            <View style={styles.stat}>
+            <View style={[styles.statItem, styles.statItemBorder]}>
               <Text style={styles.statNumber}>{(totalVolume / 1000).toFixed(1)}k</Text>
               <Text style={styles.statLabel}>总容量(kg)</Text>
             </View>
-            <View style={styles.stat}>
+            <View style={styles.statItem}>
               <Text style={styles.statNumber}>{exercises.length}</Text>
               <Text style={styles.statLabel}>动作数量</Text>
             </View>
@@ -77,22 +96,28 @@ export default function ProfileScreen({ navigation }: any) {
           <List.Item
             title="动作库管理"
             description="查看和管理训练动作"
-            left={props => <List.Icon {...props} icon="dumbbell" />}
+            left={props => <List.Icon {...props} icon="dumbbell" color="#6366F1" />}
+            right={props => <List.Icon {...props} icon="chevron-right" />}
             onPress={() => navigation.navigate('ExerciseLibrary')}
+            style={styles.listItem}
           />
           <Divider />
           <List.Item
             title="肌肉增长预测"
             description="基于数据预测增肌效果"
-            left={props => <List.Icon {...props} icon="trending-up" />}
+            left={props => <List.Icon {...props} icon="trending-up" color="#10B981" />}
+            right={props => <List.Icon {...props} icon="chevron-right" />}
             onPress={() => navigation.navigate('Prediction')}
+            style={styles.listItem}
           />
           <Divider />
           <List.Item
             title="身体数据"
             description="设置体重、年龄、目标等"
-            left={props => <List.Icon {...props} icon="account" />}
+            left={props => <List.Icon {...props} icon="account-details" color="#F59E0B" />}
+            right={props => <List.Icon {...props} icon="chevron-right" />}
             onPress={() => navigation.navigate('BodyData')}
+            style={styles.listItem}
           />
         </List.Section>
       </Card>
@@ -103,63 +128,118 @@ export default function ProfileScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-    padding: 10,
+    backgroundColor: '#F8FAFC',
+    padding: 16,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    marginVertical: 15,
-    marginLeft: 5,
+    marginBottom: 16,
+    color: '#1E293B',
   },
   card: {
-    marginBottom: 10,
+    marginBottom: 16,
+    borderRadius: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  userCard: {
+    backgroundColor: '#6366F1',
+  },
+  userHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  avatar: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  userInfo: {
+    marginLeft: 16,
+    flex: 1,
   },
   userName: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 10,
+    color: '#fff',
   },
-  userDetail: {
+  userSubtitle: {
     fontSize: 14,
-    color: '#666',
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 4,
+  },
+  divider: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginVertical: 12,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 16,
+  },
+  detailItem: {
+    alignItems: 'center',
+  },
+  detailLabel: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.7)',
     marginBottom: 4,
   },
-  goal: {
+  detailValue: {
     fontSize: 16,
-    color: '#1A5F7A',
     fontWeight: 'bold',
-    marginTop: 8,
+    color: '#fff',
   },
   noProfile: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  noProfileText: {
     fontSize: 16,
-    color: '#999',
-    textAlign: 'center',
-    marginVertical: 20,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 12,
+    marginBottom: 16,
   },
   editButton: {
-    marginTop: 15,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+  },
+  statsCard: {
+    backgroundColor: '#fff',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 15,
+    marginBottom: 16,
+    color: '#1E293B',
   },
-  statsRow: {
+  statsGrid: {
     flexDirection: 'row',
     justifyContent: 'space-around',
   },
-  stat: {
+  statItem: {
     alignItems: 'center',
+    flex: 1,
+    paddingVertical: 8,
+  },
+  statItemBorder: {
+    borderRightWidth: 1,
+    borderRightColor: '#E2E8F0',
   },
   statNumber: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#1A5F7A',
+    color: '#6366F1',
   },
   statLabel: {
     fontSize: 12,
-    color: '#666',
+    color: '#64748B',
     marginTop: 4,
+  },
+  listItem: {
+    paddingVertical: 8,
   },
 });

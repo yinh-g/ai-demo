@@ -18,6 +18,7 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import ExerciseLibraryScreen from './src/screens/ExerciseLibraryScreen';
 import CreatePlanScreen from './src/screens/CreatePlanScreen';
 import WorkoutSessionScreen from './src/screens/WorkoutSessionScreen';
+import CardioSessionScreen from './src/screens/CardioSessionScreen';
 import PredictionScreen from './src/screens/PredictionScreen';
 import BodyDataScreen from './src/screens/BodyDataScreen';
 
@@ -104,8 +105,9 @@ function AppContent() {
             <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
             <Stack.Screen name="ExerciseLibrary" component={ExerciseLibraryScreen} options={{ title: '动作库' }} />
             <Stack.Screen name="CreatePlan" component={CreatePlanScreen} options={{ title: '创建计划' }} />
-            <Stack.Screen name="WorkoutSession" component={WorkoutSessionScreen} options={{ title: '训练中' }} />
-            <Stack.Screen name="Prediction" component={PredictionScreen} options={{ title: '肌肉增长预测' }} />
+            <Stack.Screen name="WorkoutSession" component={WorkoutSessionScreen} options={{ title: '力量训练' }} />
+            <Stack.Screen name="CardioSession" component={CardioSessionScreen} options={{ title: '有氧训练' }} />
+            <Stack.Screen name="Prediction" component={PredictionScreen} options={{ title: '身体预测' }} />
             <Stack.Screen name="BodyData" component={BodyDataScreen} options={{ title: '身体数据' }} />
           </Stack.Navigator>
         </NavigationContainer>

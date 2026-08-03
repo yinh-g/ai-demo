@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, FlatList, Image } from 'react-native';
-import { Text, Card, Button, TextInput, Chip, Portal, Dialog } from 'react-native-paper';
+import { View, StyleSheet, FlatList, Image, ScrollView } from 'react-native';
+import { Text, Card, Button, TextInput, Chip, Portal, Dialog, Avatar } from 'react-native-paper';
 import { useAppStore } from '../store';
 import { Exercise } from '../types';
 import { categoryLabels, equipmentLabels } from '../data/defaultExercises';
 
-// 分类图标映射
 const categoryIcons: Record<string, any> = {
   chest: require('../../assets/icons/chest.png'),
   back: require('../../assets/icons/back.png'),
@@ -13,6 +12,15 @@ const categoryIcons: Record<string, any> = {
   shoulders: require('../../assets/icons/shoulder.png'),
   arms: require('../../assets/icons/arm.png'),
   core: require('../../assets/icons/core.png'),
+};
+
+const categoryColors: Record<string, string> = {
+  chest: '#EF4444',
+  back: '#3B82F6',
+  legs: '#8B5CF6',
+  shoulders: '#F59E0B',
+  arms: '#10B981',
+  core: '#EC4899'
 };
 
 export default function ExerciseLibraryScreen() {
@@ -58,8 +66,8 @@ export default function ExerciseLibraryScreen() {
         <View style={styles.exerciseHeader}>
           <View style={styles.exerciseTitle}>
             {categoryIcons[item.category] && (
-              <Image 
-                source={categoryIcons[item.category]} 
+              <Image
+                source={categoryIcons[item.category]}
                 style={styles.categoryIcon}
                 resizeMode="contain"
               />
@@ -67,23 +75,30 @@ export default function ExerciseLibraryScreen() {
             <Text style={styles.exerciseName}>{item.name}</Text>
           </View>
           {item.isCustom && (
-            <Button 
-              compact 
-              textColor="#ff6b35"
+            <Button
+              compact
+              textColor="#EF4444"
               onPress={() => deleteExercise(item.id)}
+              icon="delete"
+              labelStyle={{ fontSize: 12 }}
             >
               删除
             </Button>
           )}
         </View>
         <View style={styles.chipContainer}>
-          <Chip style={styles.chip}>{categoryLabels[item.category]}</Chip>
-          <Chip style={styles.chip}>{equipmentLabels[item.equipment]}</Chip>
+          <Chip style={[styles.chip, { backgroundColor: (categoryColors[item.category] || '#6366F1') + '15' }]} textStyle={{ color: categoryColors[item.category] || '#6366F1', fontSize: 12 }}>
+            {categoryLabels[item.category]}
+          </Chip>
+          <Chip style={[styles.chip, { backgroundColor: '#F1F5F9' }]} textStyle={{ color: '#64748B', fontSize: 12 }}>
+            {equipmentLabels[item.equipment]}
+          </Chip>
         </View>
         {item.muscleGroup.length > 0 && (
-          <Text style={styles.muscleGroup}>
-            目标肌群: {item.muscleGroup.join(', ')}
-          </Text>
+          <View style={styles.muscleGroupRow}>
+            <Avatar.Icon size={14} icon="target" style={{ backgroundColor: 'transparent' }} color="#94A3B8" />
+            <Text style={styles.muscleGroup}>目标肌群: {item.muscleGroup.join(', ')}</Text>
+          </View>
         )}
       </Card.Content>
     </Card>
@@ -91,18 +106,28 @@ export default function ExerciseLibraryScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.header}>
+        <Avatar.Icon size={36} icon="book-open-variant" style={styles.headerIcon} color="#6366F1" />
+        <Text style={styles.headerTitle}>动作库</Text>
+      </View>
+
       <TextInput
         placeholder="搜索动作..."
         value={searchQuery}
         onChangeText={setSearchQuery}
         style={styles.searchInput}
+        mode="outlined"
+        outlineColor="#E2E8F0"
+        activeOutlineColor="#6366F1"
+        left={<TextInput.Icon icon="magnify" color="#94A3B8" />}
       />
 
-      <View style={styles.filterContainer}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
         <Chip
           selected={selectedCategory === null}
           onPress={() => setSelectedCategory(null)}
-          style={styles.filterChip}
+          style={[styles.filterChip, selectedCategory === null && styles.filterChipActive]}
+          selectedColor="#6366F1"
         >
           全部
         </Chip>
@@ -111,37 +136,44 @@ export default function ExerciseLibraryScreen() {
             key={cat}
             selected={selectedCategory === cat}
             onPress={() => setSelectedCategory(cat)}
-            style={styles.filterChip}
+            style={[styles.filterChip, selectedCategory === cat && styles.filterChipActive]}
+            selectedColor="#6366F1"
           >
             {categoryLabels[cat]}
           </Chip>
         ))}
-      </View>
+      </ScrollView>
 
       <FlatList
         data={filteredExercises}
         renderItem={renderExercise}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.list}
+        showsVerticalScrollIndicator={false}
       />
 
       <Button
         mode="contained"
         onPress={() => setVisible(true)}
         style={styles.addButton}
+        labelStyle={styles.addButtonLabel}
+        icon="plus"
       >
         添加自定义动作
       </Button>
 
       <Portal>
-        <Dialog visible={visible} onDismiss={() => setVisible(false)}>
-          <Dialog.Title>添加新动作</Dialog.Title>
+        <Dialog visible={visible} onDismiss={() => setVisible(false)} style={styles.dialog}>
+          <Dialog.Title style={styles.dialogTitle}>添加新动作</Dialog.Title>
           <Dialog.Content>
             <TextInput
               label="动作名称"
               value={newExercise.name}
               onChangeText={text => setNewExercise({ ...newExercise, name: text })}
               style={styles.input}
+              mode="outlined"
+              outlineColor="#E2E8F0"
+              activeOutlineColor="#6366F1"
             />
             <Text style={styles.label}>分类</Text>
             <View style={styles.chipContainer}>
@@ -150,7 +182,8 @@ export default function ExerciseLibraryScreen() {
                   key={cat}
                   selected={newExercise.category === cat}
                   onPress={() => setNewExercise({ ...newExercise, category: cat })}
-                  style={styles.chip}
+                  style={[styles.chip, newExercise.category === cat && { backgroundColor: (categoryColors[cat] || '#6366F1') + '20' }]}
+                  selectedColor={categoryColors[cat] || '#6366F1'}
                 >
                   {categoryLabels[cat]}
                 </Chip>
@@ -164,6 +197,7 @@ export default function ExerciseLibraryScreen() {
                   selected={newExercise.equipment === eq}
                   onPress={() => setNewExercise({ ...newExercise, equipment: eq })}
                   style={styles.chip}
+                  selectedColor="#6366F1"
                 >
                   {equipmentLabels[eq]}
                 </Chip>
@@ -174,11 +208,14 @@ export default function ExerciseLibraryScreen() {
               value={newExercise.muscleGroup}
               onChangeText={text => setNewExercise({ ...newExercise, muscleGroup: text })}
               style={styles.input}
+              mode="outlined"
+              outlineColor="#E2E8F0"
+              activeOutlineColor="#6366F1"
             />
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setVisible(false)}>取消</Button>
-            <Button onPress={handleAddExercise}>添加</Button>
+            <Button onPress={() => setVisible(false)} textColor="#64748B">取消</Button>
+            <Button onPress={handleAddExercise} mode="contained" style={{ borderRadius: 8, backgroundColor: '#6366F1' }}>添加</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
@@ -189,26 +226,51 @@ export default function ExerciseLibraryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-    padding: 10,
+    backgroundColor: '#F8FAFC',
+    padding: 16,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  headerIcon: {
+    backgroundColor: '#EEF2FF',
+    marginRight: 10,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#1E293B',
   },
   searchInput: {
     backgroundColor: '#fff',
-    marginBottom: 10,
+    marginBottom: 12,
+    fontSize: 15,
   },
-  filterContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 10,
+  filterScroll: {
+    marginBottom: 12,
   },
   filterChip: {
-    margin: 2,
+    margin: 3,
+    backgroundColor: '#F1F5F9',
+  },
+  filterChipActive: {
+    backgroundColor: '#EEF2FF',
   },
   list: {
     paddingBottom: 80,
   },
   exerciseCard: {
-    marginBottom: 8,
+    marginBottom: 10,
+    borderRadius: 14,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
   },
   exerciseHeader: {
     flexDirection: 'row',
@@ -224,11 +286,12 @@ const styles = StyleSheet.create({
   categoryIcon: {
     width: 24,
     height: 24,
-    marginRight: 8,
+    marginRight: 10,
   },
   exerciseName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
+    color: '#1E293B',
   },
   chipContainer: {
     flexDirection: 'row',
@@ -238,16 +301,36 @@ const styles = StyleSheet.create({
   chip: {
     margin: 2,
   },
-  muscleGroup: {
+  muscleGroupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginTop: 8,
-    color: '#666',
-    fontSize: 14,
+  },
+  muscleGroup: {
+    marginLeft: 4,
+    color: '#64748B',
+    fontSize: 13,
   },
   addButton: {
     position: 'absolute',
     bottom: 20,
     left: 20,
     right: 20,
+    borderRadius: 12,
+    backgroundColor: '#6366F1',
+    paddingVertical: 4,
+  },
+  addButtonLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  dialog: {
+    borderRadius: 20,
+  },
+  dialogTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1E293B',
   },
   input: {
     marginBottom: 10,
@@ -258,5 +341,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginTop: 10,
     marginBottom: 5,
+    color: '#1E293B',
   },
 });

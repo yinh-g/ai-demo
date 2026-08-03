@@ -1,17 +1,15 @@
 import React from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
-import { Text, Card, Button } from 'react-native-paper';
+import { Text, Card, Button, Avatar } from 'react-native-paper';
 import { useAppStore } from '../store';
 
 export default function StatsScreen({ navigation }: any) {
   const { workoutRecords, exercises } = useAppStore();
 
-  // 计算统计数据
   const totalWorkouts = workoutRecords.filter(r => r.status === 'completed').length;
   const totalVolume = workoutRecords.reduce((sum, r) => sum + r.totalVolume, 0);
   const totalDuration = workoutRecords.reduce((sum, r) => sum + r.duration, 0);
 
-  // 本周数据
   const getWeekData = () => {
     const weekStart = new Date();
     weekStart.setDate(weekStart.getDate() - 7);
@@ -21,7 +19,17 @@ export default function StatsScreen({ navigation }: any) {
   const weekVolume = weekData.reduce((sum, r) => sum + r.totalVolume, 0);
   const weekDuration = weekData.reduce((sum, r) => sum + r.duration, 0);
 
-  // 计算各肌群分布
+  const strengthRecords = workoutRecords.filter(r => r.workoutType === 'strength' && r.status === 'completed');
+  const cardioRecords = workoutRecords.filter(r => r.workoutType === 'cardio' && r.status === 'completed');
+
+  const totalCardioDistance = cardioRecords.reduce((sum, r) => sum + (r.totalDistance || 0), 0);
+  const totalCardioCalories = cardioRecords.reduce((sum, r) => sum + (r.totalCalories || 0), 0);
+  const totalCardioDuration = cardioRecords.reduce((sum, r) => sum + r.duration, 0);
+
+  const weekCardioRecords = weekData.filter(r => r.workoutType === 'cardio');
+  const weekCardioDistance = weekCardioRecords.reduce((sum, r) => sum + (r.totalDistance || 0), 0);
+  const weekCardioCalories = weekCardioRecords.reduce((sum, r) => sum + (r.totalCalories || 0), 0);
+
   const muscleDistribution = () => {
     const distribution: Record<string, number> = {};
     workoutRecords.forEach(record => {
@@ -44,27 +52,56 @@ export default function StatsScreen({ navigation }: any) {
     core: '核心'
   };
 
+  const categoryIcons: Record<string, string> = {
+    chest: 'heart',
+    back: 'arrow-left-right',
+    legs: 'walk',
+    shoulders: 'human',
+    arms: 'arm-flex',
+    core: 'circle-slice-4'
+  };
+
+  const categoryColors: Record<string, string> = {
+    chest: '#EF4444',
+    back: '#3B82F6',
+    legs: '#8B5CF6',
+    shoulders: '#F59E0B',
+    arms: '#10B981',
+    core: '#EC4899'
+  };
+
   const muscleDist = muscleDistribution();
   const totalSets = Object.values(muscleDist).reduce((a, b) => a + b, 0);
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>📊 数据统计</Text>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <View style={styles.header}>
+        <Avatar.Icon size={40} icon="chart-bar" style={styles.headerIcon} color="#6366F1" />
+        <Text style={styles.title}>数据统计</Text>
+      </View>
 
-      {/* 概览卡片 */}
-      <Card style={styles.card}>
+      <Card style={[styles.card, styles.overviewCard]}>
         <Card.Content>
           <Text style={styles.sectionTitle}>训练概览</Text>
           <View style={styles.statsGrid}>
             <View style={styles.statItem}>
+              <View style={[styles.statIconBg, { backgroundColor: '#EEF2FF' }]}>
+                <Avatar.Icon size={28} icon="dumbbell" style={{ backgroundColor: 'transparent' }} color="#6366F1" />
+              </View>
               <Text style={styles.statNumber}>{totalWorkouts}</Text>
               <Text style={styles.statLabel}>总训练次数</Text>
             </View>
             <View style={styles.statItem}>
+              <View style={[styles.statIconBg, { backgroundColor: '#ECFDF5' }]}>
+                <Avatar.Icon size={28} icon="weight-kilogram" style={{ backgroundColor: 'transparent' }} color="#10B981" />
+              </View>
               <Text style={styles.statNumber}>{(totalVolume / 1000).toFixed(1)}k</Text>
               <Text style={styles.statLabel}>总容量(kg)</Text>
             </View>
             <View style={styles.statItem}>
+              <View style={[styles.statIconBg, { backgroundColor: '#FEF3C7' }]}>
+                <Avatar.Icon size={28} icon="clock-outline" style={{ backgroundColor: 'transparent' }} color="#F59E0B" />
+              </View>
               <Text style={styles.statNumber}>{Math.floor(totalDuration / 60)}</Text>
               <Text style={styles.statLabel}>总时长(小时)</Text>
             </View>
@@ -72,19 +109,23 @@ export default function StatsScreen({ navigation }: any) {
         </Card.Content>
       </Card>
 
-      {/* 本周统计 */}
       <Card style={styles.card}>
         <Card.Content>
-          <Text style={styles.sectionTitle}>本周统计</Text>
+          <View style={styles.sectionHeader}>
+            <Avatar.Icon size={24} icon="calendar-week" style={styles.sectionIcon} color="#10B981" />
+            <Text style={styles.sectionTitle}>本周统计</Text>
+          </View>
           <View style={styles.weekStats}>
             <View style={styles.weekStat}>
               <Text style={styles.weekNumber}>{weekData.length}</Text>
               <Text style={styles.weekLabel}>训练次数</Text>
             </View>
+            <View style={styles.divider} />
             <View style={styles.weekStat}>
               <Text style={styles.weekNumber}>{(weekVolume / 1000).toFixed(1)}k</Text>
               <Text style={styles.weekLabel}>总容量(kg)</Text>
             </View>
+            <View style={styles.divider} />
             <View style={styles.weekStat}>
               <Text style={styles.weekNumber}>{weekDuration}</Text>
               <Text style={styles.weekLabel}>总时长(分钟)</Text>
@@ -93,20 +134,31 @@ export default function StatsScreen({ navigation }: any) {
         </Card.Content>
       </Card>
 
-      {/* 肌群分布 */}
       {totalSets > 0 && (
         <Card style={styles.card}>
           <Card.Content>
-            <Text style={styles.sectionTitle}>肌群分布</Text>
+            <View style={styles.sectionHeader}>
+              <Avatar.Icon size={24} icon="chart-pie" style={styles.sectionIcon} color="#F59E0B" />
+              <Text style={styles.sectionTitle}>肌群分布</Text>
+            </View>
             {Object.entries(muscleDist).map(([category, count]) => {
               const percentage = ((count / totalSets) * 100).toFixed(1);
+              const color = categoryColors[category] || '#6366F1';
               return (
                 <View key={category} style={styles.muscleBar}>
-                  <Text style={styles.muscleLabel}>{categoryLabels[category] || category}</Text>
-                  <View style={styles.barContainer}>
-                    <View style={[styles.bar, { width: `${percentage}%` }]} />
+                  <View style={styles.muscleLabelContainer}>
+                    <Avatar.Icon
+                      size={20}
+                      icon={categoryIcons[category] || 'dumbbell'}
+                      style={[styles.muscleIcon, { backgroundColor: color + '20' }]}
+                      color={color}
+                    />
+                    <Text style={styles.muscleLabel}>{categoryLabels[category] || category}</Text>
                   </View>
-                  <Text style={styles.musclePercent}>{percentage}%</Text>
+                  <View style={styles.barContainer}>
+                    <View style={[styles.bar, { width: `${percentage}%`, backgroundColor: color }]} />
+                  </View>
+                  <Text style={[styles.musclePercent, { color }]}>{percentage}%</Text>
                 </View>
               );
             })}
@@ -114,13 +166,65 @@ export default function StatsScreen({ navigation }: any) {
         </Card>
       )}
 
-      {/* 肌肉增长预测入口 */}
+      {cardioRecords.length > 0 && (
+        <Card style={styles.card}>
+          <Card.Content>
+            <View style={styles.sectionHeader}>
+              <Avatar.Icon size={24} icon="heart-pulse" style={styles.sectionIcon} color="#10B981" />
+              <Text style={styles.sectionTitle}>有氧统计</Text>
+            </View>
+            <View style={styles.statsGrid}>
+              <View style={styles.statItem}>
+                <View style={[styles.statIconBg, { backgroundColor: '#ECFDF5' }]}>
+                  <Avatar.Icon size={28} icon="map-marker-distance" style={{ backgroundColor: 'transparent' }} color="#10B981" />
+                </View>
+                <Text style={styles.statNumberDark}>{totalCardioDistance.toFixed(1)}</Text>
+                <Text style={styles.statLabelDark}>总距离(km)</Text>
+              </View>
+              <View style={styles.statItem}>
+                <View style={[styles.statIconBg, { backgroundColor: '#FEF3C7' }]}>
+                  <Avatar.Icon size={28} icon="fire" style={{ backgroundColor: 'transparent' }} color="#F59E0B" />
+                </View>
+                <Text style={styles.statNumberDark}>{totalCardioCalories}</Text>
+                <Text style={styles.statLabelDark}>总消耗(kcal)</Text>
+              </View>
+              <View style={styles.statItem}>
+                <View style={[styles.statIconBg, { backgroundColor: '#EEF2FF' }]}>
+                  <Avatar.Icon size={28} icon="clock-outline" style={{ backgroundColor: 'transparent' }} color="#6366F1" />
+                </View>
+                <Text style={styles.statNumberDark}>{Math.floor(totalCardioDuration / 60)}</Text>
+                <Text style={styles.statLabelDark}>总时长(小时)</Text>
+              </View>
+            </View>
+
+            <View style={styles.weekStats}>
+              <View style={styles.weekStat}>
+                <Text style={styles.weekNumber}>{weekCardioRecords.length}</Text>
+                <Text style={styles.weekLabel}>本周次数</Text>
+              </View>
+              <View style={styles.divider} />
+              <View style={styles.weekStat}>
+                <Text style={styles.weekNumber}>{weekCardioDistance.toFixed(1)}</Text>
+                <Text style={styles.weekLabel}>本周距离(km)</Text>
+              </View>
+              <View style={styles.divider} />
+              <View style={styles.weekStat}>
+                <Text style={styles.weekNumber}>{weekCardioCalories}</Text>
+                <Text style={styles.weekLabel}>本周消耗(kcal)</Text>
+              </View>
+            </View>
+          </Card.Content>
+        </Card>
+      )}
+
       <Button
         mode="contained"
         onPress={() => navigation.navigate('Prediction')}
         style={styles.predictionButton}
+        labelStyle={styles.predictionButtonLabel}
+        icon="trending-up"
       >
-        查看肌肉增长预测
+        查看身体预测
       </Button>
     </ScrollView>
   );
@@ -129,86 +233,156 @@ export default function StatsScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-    padding: 10,
+    backgroundColor: '#F8FAFC',
+    padding: 16,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    marginTop: 8,
+  },
+  headerIcon: {
+    backgroundColor: '#EEF2FF',
+    marginRight: 12,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginVertical: 15,
-    marginLeft: 5,
+    color: '#1E293B',
   },
   card: {
-    marginBottom: 10,
+    marginBottom: 12,
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  overviewCard: {
+    backgroundColor: '#6366F1',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  sectionIcon: {
+    backgroundColor: 'transparent',
+    marginRight: 8,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 15,
+    color: '#1E293B',
   },
   statsGrid: {
     flexDirection: 'row',
     justifyContent: 'space-around',
+    paddingVertical: 8,
   },
   statItem: {
     alignItems: 'center',
   },
+  statIconBg: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   statNumber: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: 'bold',
-    color: '#1A5F7A',
+    color: '#fff',
   },
   statLabel: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 4,
+  },
+  statNumberDark: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#1E293B',
+  },
+  statLabelDark: {
+    fontSize: 12,
+    color: '#64748B',
     marginTop: 4,
   },
   weekStats: {
     flexDirection: 'row',
     justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingVertical: 8,
   },
   weekStat: {
     alignItems: 'center',
+    flex: 1,
+  },
+  divider: {
+    width: 1,
+    height: 40,
+    backgroundColor: '#E2E8F0',
   },
   weekNumber: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#28A745',
+    color: '#6366F1',
   },
   weekLabel: {
     fontSize: 12,
-    color: '#666',
+    color: '#64748B',
     marginTop: 4,
   },
   muscleBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
+  },
+  muscleLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: 80,
+  },
+  muscleIcon: {
+    marginRight: 6,
   },
   muscleLabel: {
-    width: 60,
-    fontSize: 14,
+    fontSize: 13,
+    color: '#475569',
+    fontWeight: '500',
   },
   barContainer: {
     flex: 1,
-    height: 20,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 10,
+    height: 8,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 4,
     marginHorizontal: 10,
     overflow: 'hidden',
   },
   bar: {
     height: '100%',
-    backgroundColor: '#1A5F7A',
-    borderRadius: 10,
+    borderRadius: 4,
   },
   musclePercent: {
-    width: 50,
+    width: 44,
     textAlign: 'right',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 'bold',
   },
   predictionButton: {
     marginVertical: 20,
+    borderRadius: 12,
+    backgroundColor: '#6366F1',
+    paddingVertical: 4,
+  },
+  predictionButtonLabel: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
-import { Text, Card, Button, TextInput, Chip } from 'react-native-paper';
+import { Text, Card, Button, TextInput, Chip, Avatar } from 'react-native-paper';
 import { useAppStore } from '../store';
 import { UserProfile } from '../types';
 
 export default function BodyDataScreen({ navigation }: any) {
   const { userProfile, setUserProfile } = useAppStore();
-  
+
   const [formData, setFormData] = useState({
     weight: '',
     height: '',
@@ -17,6 +17,9 @@ export default function BodyDataScreen({ navigation }: any) {
     proteinIntake: '',
     sleepHours: '',
     muscleGainGoal: '',
+    dailyCalorieIntake: '',
+    fatLossGoal: '',
+    targetBodyFat: '',
   });
 
   useEffect(() => {
@@ -31,6 +34,9 @@ export default function BodyDataScreen({ navigation }: any) {
         proteinIntake: userProfile.proteinIntake.toString(),
         sleepHours: userProfile.sleepHours.toString(),
         muscleGainGoal: userProfile.muscleGainGoal?.toString() || '',
+        dailyCalorieIntake: userProfile.dailyCalorieIntake?.toString() || '',
+        fatLossGoal: userProfile.fatLossGoal?.toString() || '',
+        targetBodyFat: userProfile.targetBodyFat?.toString() || '',
       });
     }
   }, [userProfile]);
@@ -47,6 +53,9 @@ export default function BodyDataScreen({ navigation }: any) {
       proteinIntake: parseFloat(formData.proteinIntake) || 1.6,
       sleepHours: parseFloat(formData.sleepHours) || 7,
       muscleGainGoal: formData.muscleGainGoal ? parseFloat(formData.muscleGainGoal) : undefined,
+      dailyCalorieIntake: formData.dailyCalorieIntake ? parseFloat(formData.dailyCalorieIntake) : undefined,
+      fatLossGoal: formData.fatLossGoal ? parseFloat(formData.fatLossGoal) : undefined,
+      targetBodyFat: formData.targetBodyFat ? parseFloat(formData.targetBodyFat) : undefined,
       createdAt: userProfile?.createdAt || Date.now(),
       updatedAt: Date.now(),
     };
@@ -59,18 +68,28 @@ export default function BodyDataScreen({ navigation }: any) {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>📏 身体数据</Text>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <View style={styles.header}>
+        <Avatar.Icon size={36} icon="account-details" style={styles.headerIcon} color="#6366F1" />
+        <Text style={styles.title}>身体数据</Text>
+      </View>
 
       <Card style={styles.card}>
         <Card.Content>
-          <Text style={styles.sectionTitle}>基础信息</Text>
+          <View style={styles.sectionHeader}>
+            <Avatar.Icon size={18} icon="account" style={styles.sectionIcon} color="#6366F1" />
+            <Text style={styles.sectionTitle}>基础信息</Text>
+          </View>
           <TextInput
             label="体重 (kg) *"
             value={formData.weight}
             onChangeText={text => setFormData({ ...formData, weight: text })}
             keyboardType="numeric"
             style={styles.input}
+            mode="outlined"
+            outlineColor="#E2E8F0"
+            activeOutlineColor="#6366F1"
+            left={<TextInput.Icon icon="weight-kilogram" color="#94A3B8" />}
           />
           <TextInput
             label="身高 (cm)"
@@ -78,6 +97,10 @@ export default function BodyDataScreen({ navigation }: any) {
             onChangeText={text => setFormData({ ...formData, height: text })}
             keyboardType="numeric"
             style={styles.input}
+            mode="outlined"
+            outlineColor="#E2E8F0"
+            activeOutlineColor="#6366F1"
+            left={<TextInput.Icon icon="human-male-height" color="#94A3B8" />}
           />
           <TextInput
             label="体脂率 (%)"
@@ -85,6 +108,10 @@ export default function BodyDataScreen({ navigation }: any) {
             onChangeText={text => setFormData({ ...formData, bodyFat: text })}
             keyboardType="numeric"
             style={styles.input}
+            mode="outlined"
+            outlineColor="#E2E8F0"
+            activeOutlineColor="#6366F1"
+            left={<TextInput.Icon icon="percent" color="#94A3B8" />}
           />
           <TextInput
             label="年龄 (岁) *"
@@ -92,23 +119,31 @@ export default function BodyDataScreen({ navigation }: any) {
             onChangeText={text => setFormData({ ...formData, age: text })}
             keyboardType="numeric"
             style={styles.input}
+            mode="outlined"
+            outlineColor="#E2E8F0"
+            activeOutlineColor="#6366F1"
+            left={<TextInput.Icon icon="calendar" color="#94A3B8" />}
           />
-          
+
           <Text style={styles.label}>性别 *</Text>
           <View style={styles.genderContainer}>
             <Chip
               selected={formData.gender === 'male'}
               onPress={() => setFormData({ ...formData, gender: 'male' })}
-              style={styles.genderChip}
+              style={[styles.genderChip, formData.gender === 'male' && styles.genderChipActive]}
+              selectedColor="#6366F1"
+              avatar={<Avatar.Icon size={20} icon="face-man" style={{ backgroundColor: 'transparent' }} color="#6366F1" />}
             >
-              👨 男性
+              男性
             </Chip>
             <Chip
               selected={formData.gender === 'female'}
               onPress={() => setFormData({ ...formData, gender: 'female' })}
-              style={styles.genderChip}
+              style={[styles.genderChip, formData.gender === 'female' && styles.genderChipActive]}
+              selectedColor="#EC4899"
+              avatar={<Avatar.Icon size={20} icon="face-woman" style={{ backgroundColor: 'transparent' }} color="#EC4899" />}
             >
-              👩 女性
+              女性
             </Chip>
           </View>
         </Card.Content>
@@ -116,26 +151,40 @@ export default function BodyDataScreen({ navigation }: any) {
 
       <Card style={styles.card}>
         <Card.Content>
-          <Text style={styles.sectionTitle}>训练信息</Text>
+          <View style={styles.sectionHeader}>
+            <Avatar.Icon size={18} icon="dumbbell" style={styles.sectionIcon} color="#10B981" />
+            <Text style={styles.sectionTitle}>训练信息</Text>
+          </View>
           <TextInput
             label="训练年限 (年) *"
             value={formData.trainingYears}
             onChangeText={text => setFormData({ ...formData, trainingYears: text })}
             keyboardType="numeric"
             style={styles.input}
+            mode="outlined"
+            outlineColor="#E2E8F0"
+            activeOutlineColor="#6366F1"
+            left={<TextInput.Icon icon="calendar-clock" color="#94A3B8" />}
           />
         </Card.Content>
       </Card>
 
       <Card style={styles.card}>
         <Card.Content>
-          <Text style={styles.sectionTitle}>营养与恢复</Text>
+          <View style={styles.sectionHeader}>
+            <Avatar.Icon size={18} icon="food-apple" style={styles.sectionIcon} color="#F59E0B" />
+            <Text style={styles.sectionTitle}>营养与恢复</Text>
+          </View>
           <TextInput
             label="蛋白质摄入 (g/kg/天) *"
             value={formData.proteinIntake}
             onChangeText={text => setFormData({ ...formData, proteinIntake: text })}
             keyboardType="numeric"
             style={styles.input}
+            mode="outlined"
+            outlineColor="#E2E8F0"
+            activeOutlineColor="#6366F1"
+            left={<TextInput.Icon icon="food-steak" color="#94A3B8" />}
           />
           <TextInput
             label="平均睡眠时长 (小时) *"
@@ -143,19 +192,63 @@ export default function BodyDataScreen({ navigation }: any) {
             onChangeText={text => setFormData({ ...formData, sleepHours: text })}
             keyboardType="numeric"
             style={styles.input}
+            mode="outlined"
+            outlineColor="#E2E8F0"
+            activeOutlineColor="#6366F1"
+            left={<TextInput.Icon icon="sleep" color="#94A3B8" />}
+          />
+          <TextInput
+            label="日均摄入卡路里 (kcal)"
+            value={formData.dailyCalorieIntake}
+            onChangeText={text => setFormData({ ...formData, dailyCalorieIntake: text })}
+            keyboardType="numeric"
+            style={styles.input}
+            mode="outlined"
+            outlineColor="#E2E8F0"
+            activeOutlineColor="#6366F1"
+            left={<TextInput.Icon icon="food" color="#94A3B8" />}
           />
         </Card.Content>
       </Card>
 
       <Card style={styles.card}>
         <Card.Content>
-          <Text style={styles.sectionTitle}>增肌目标</Text>
+          <View style={styles.sectionHeader}>
+            <Avatar.Icon size={18} icon="target" style={styles.sectionIcon} color="#EF4444" />
+            <Text style={styles.sectionTitle}>目标设定</Text>
+          </View>
           <TextInput
             label="目标增肌量 (kg)"
             value={formData.muscleGainGoal}
             onChangeText={text => setFormData({ ...formData, muscleGainGoal: text })}
             keyboardType="numeric"
             style={styles.input}
+            mode="outlined"
+            outlineColor="#E2E8F0"
+            activeOutlineColor="#6366F1"
+            left={<TextInput.Icon icon="trending-up" color="#94A3B8" />}
+          />
+          <TextInput
+            label="目标减脂量 (kg)"
+            value={formData.fatLossGoal}
+            onChangeText={text => setFormData({ ...formData, fatLossGoal: text })}
+            keyboardType="numeric"
+            style={styles.input}
+            mode="outlined"
+            outlineColor="#E2E8F0"
+            activeOutlineColor="#6366F1"
+            left={<TextInput.Icon icon="fire" color="#94A3B8" />}
+          />
+          <TextInput
+            label="目标体脂率 (%)"
+            value={formData.targetBodyFat}
+            onChangeText={text => setFormData({ ...formData, targetBodyFat: text })}
+            keyboardType="numeric"
+            style={styles.input}
+            mode="outlined"
+            outlineColor="#E2E8F0"
+            activeOutlineColor="#6366F1"
+            left={<TextInput.Icon icon="percent" color="#94A3B8" />}
           />
         </Card.Content>
       </Card>
@@ -165,6 +258,8 @@ export default function BodyDataScreen({ navigation }: any) {
         onPress={handleSave}
         disabled={!isValid()}
         style={styles.saveButton}
+        labelStyle={styles.saveButtonLabel}
+        icon="content-save"
       >
         保存
       </Button>
@@ -175,42 +270,80 @@ export default function BodyDataScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-    padding: 10,
+    backgroundColor: '#F8FAFC',
+    padding: 16,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    marginTop: 8,
+  },
+  headerIcon: {
+    backgroundColor: '#EEF2FF',
+    marginRight: 12,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginVertical: 15,
-    marginLeft: 5,
+    color: '#1E293B',
   },
   card: {
-    marginBottom: 10,
+    marginBottom: 12,
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  sectionIcon: {
+    backgroundColor: 'transparent',
+    marginRight: 6,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 15,
+    color: '#1E293B',
   },
   input: {
     backgroundColor: '#fff',
     marginBottom: 10,
+    fontSize: 15,
   },
   label: {
     fontSize: 14,
     fontWeight: 'bold',
-    marginTop: 10,
-    marginBottom: 5,
+    marginTop: 6,
+    marginBottom: 8,
+    color: '#1E293B',
   },
   genderContainer: {
     flexDirection: 'row',
-    marginBottom: 10,
+    marginBottom: 6,
+    gap: 10,
   },
   genderChip: {
-    marginRight: 10,
     flex: 1,
+    backgroundColor: '#F1F5F9',
+  },
+  genderChipActive: {
+    backgroundColor: '#EEF2FF',
   },
   saveButton: {
     marginVertical: 20,
+    borderRadius: 12,
+    backgroundColor: '#6366F1',
+    paddingVertical: 4,
+  },
+  saveButtonLabel: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

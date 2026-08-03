@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "FitTrack - 训练记录",
-    "slug": "fitness-tracker",
+    "slug": "fittrack",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
