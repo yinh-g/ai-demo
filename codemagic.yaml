@@ -1,36 +1,20 @@
 workflows:
-  fitness-tracker-android:
-    name: Fitness Tracker Android Build
+  android-workflow:
+    name: Android Build
     instance_type: mac_mini_m1
-    max_build_duration: 120
+    max_build_duration: 60
     environment:
       node: 20
-      npm_version: 10
-    cache:
-      cache_paths:
-        - $CM_BUILD_DIR/node_modules
-        - $HOME/.npm
-        - $HOME/.gradle/caches
     scripts:
-      - name: Install dependencies
+      - name: Install npm dependencies
+        script: npm ci
+      - name: Set up Expo
         script: |
-          npm ci
-      - name: Expo Prebuild
-        script: |
-          npx expo prebuild --platform android --clean
-      - name: Build Android APK
+          npm install -g expo-cli
+          expo prebuild --platform android
+      - name: Build Android release
         script: |
           cd android
-          ./gradlew assembleRelease --no-daemon --max-workers=1
-        env:
-          JAVA_OPTS: "-Xmx2g -XX:MaxMetaspaceSize=256m"
-          GRADLE_OPTS: "-Xmx2g -XX:MaxMetaspaceSize=256m -Dorg.gradle.jvmargs='-Xmx2g -XX:MaxMetaspaceSize=256m' -Dorg.gradle.daemon=false"
+          ./gradlew assembleRelease
     artifacts:
-      - android/app/build/outputs/apk/release/*.apk
-    publishing:
-      email:
-        recipients:
-          - user@example.com
-        notify:
-          success: true
-          failure: true
+      - android/app/build/outputs/apk/release/app-release.apk
