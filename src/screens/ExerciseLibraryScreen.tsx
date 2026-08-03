@@ -1,9 +1,19 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, FlatList, Image } from 'react-native';
 import { Text, Card, Button, TextInput, Chip, Portal, Dialog } from 'react-native-paper';
 import { useAppStore } from '../store';
 import { Exercise } from '../types';
 import { categoryLabels, equipmentLabels } from '../data/defaultExercises';
+
+// 分类图标映射
+const categoryIcons: Record<string, any> = {
+  chest: require('../../assets/icons/chest.png'),
+  back: require('../../assets/icons/back.png'),
+  legs: require('../../assets/icons/leg.png'),
+  shoulders: require('../../assets/icons/shoulder.png'),
+  arms: require('../../assets/icons/arm.png'),
+  core: require('../../assets/icons/core.png'),
+};
 
 export default function ExerciseLibraryScreen() {
   const { exercises, addExercise, deleteExercise } = useAppStore();
@@ -46,7 +56,16 @@ export default function ExerciseLibraryScreen() {
     <Card style={styles.exerciseCard}>
       <Card.Content>
         <View style={styles.exerciseHeader}>
-          <Text style={styles.exerciseName}>{item.name}</Text>
+          <View style={styles.exerciseTitle}>
+            {categoryIcons[item.category] && (
+              <Image 
+                source={categoryIcons[item.category]} 
+                style={styles.categoryIcon}
+                resizeMode="contain"
+              />
+            )}
+            <Text style={styles.exerciseName}>{item.name}</Text>
+          </View>
           {item.isCustom && (
             <Button 
               compact 
@@ -197,10 +216,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  exerciseTitle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  categoryIcon: {
+    width: 24,
+    height: 24,
+    marginRight: 8,
+  },
   exerciseName: {
     fontSize: 18,
     fontWeight: 'bold',
-    flex: 1,
   },
   chipContainer: {
     flexDirection: 'row',

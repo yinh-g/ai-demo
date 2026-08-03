@@ -4,7 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, Image } from 'react-native';
 
 import { useAppStore } from './src/store';
 import { defaultExercises } from './src/data/defaultExercises';
@@ -21,12 +21,40 @@ import WorkoutSessionScreen from './src/screens/WorkoutSessionScreen';
 import PredictionScreen from './src/screens/PredictionScreen';
 import BodyDataScreen from './src/screens/BodyDataScreen';
 
+// 导入图标
+const icons = {
+  Home: require('./assets/icons/home.png'),
+  Plans: require('./assets/icons/calendar.png'),
+  Training: require('./assets/icons/dumbell.png'),
+  Stats: require('./assets/icons/chart.png'),
+  Profile: require('./assets/icons/user.png'),
+};
+
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
 function MainTabs() {
   return (
-    <Tab.Navigator>
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, size }) => {
+          const iconSource = icons[route.name as keyof typeof icons];
+          return (
+            <Image
+              source={iconSource}
+              style={{
+                width: size,
+                height: size,
+                tintColor: focused ? '#1A5F7A' : '#999',
+              }}
+              resizeMode="contain"
+            />
+          );
+        },
+        tabBarActiveTintColor: '#1A5F7A',
+        tabBarInactiveTintColor: '#999',
+      })}
+    >
       <Tab.Screen name="Home" component={HomeScreen} options={{ title: '首页' }} />
       <Tab.Screen name="Plans" component={PlanScreen} options={{ title: '计划' }} />
       <Tab.Screen name="Training" component={TrainingScreen} options={{ title: '训练' }} />
