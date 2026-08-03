@@ -28,6 +28,7 @@ interface AppState {
   // 当前训练（力量）
   currentWorkout: WorkoutRecord | null;
   startWorkout: (planId: string) => void;
+  updateCurrentWorkout: (record: Partial<WorkoutRecord>) => void;
   endWorkout: () => void;
   cancelWorkout: () => void;
 
@@ -103,6 +104,12 @@ export const useAppStore = create<AppState>()(
             status: 'completed'
           };
           set({ currentWorkout: newRecord });
+        }
+      },
+      updateCurrentWorkout: (record) => {
+        const { currentWorkout } = get();
+        if (currentWorkout) {
+          set({ currentWorkout: { ...currentWorkout, ...record } });
         }
       },
       endWorkout: () => {

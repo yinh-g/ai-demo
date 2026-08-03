@@ -6,7 +6,7 @@ import { ExerciseRecord, SetRecord } from '../types';
 
 export default function WorkoutSessionScreen({ navigation, route }: any) {
   const { planId } = route.params || {};
-  const { workoutPlans, exercises, currentWorkout, startWorkout, endWorkout, cancelWorkout, updateWorkoutRecord } = useAppStore();
+  const { workoutPlans, exercises, currentWorkout, startWorkout, endWorkout, cancelWorkout, updateCurrentWorkout } = useAppStore();
 
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
   const [showRestTimer, setShowRestTimer] = useState(false);
@@ -116,7 +116,7 @@ export default function WorkoutSessionScreen({ navigation, route }: any) {
       sum + ex.sets.reduce((setSum, set) => setSum + (set.weight * set.reps), 0), 0
     );
 
-    updateWorkoutRecord(currentWorkout.id, {
+    updateCurrentWorkout({
       exercises: updatedExercises,
       totalVolume
     });
