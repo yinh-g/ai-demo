@@ -4,27 +4,27 @@ workflows:
     instance_type: mac_mini_m1
     max_build_duration: 120
     environment:
-      node: 18
+      node: 20
       npm_version: 10
-      groups:
-        - expo
     cache:
       cache_paths:
         - $CM_BUILD_DIR/node_modules
         - $HOME/.npm
         - $HOME/.gradle/caches
     scripts:
-      - name: Clean and Install dependencies
+      - name: Install dependencies
         script: |
-          rm -rf node_modules package-lock.json
-          npm install
+          npm ci
       - name: Expo Prebuild
         script: |
           npx expo prebuild --platform android --clean
       - name: Build Android APK
         script: |
           cd android
-          ./gradlew clean assembleRelease
+          ./gradlew assembleRelease --no-daemon --max-workers=1
+        env:
+          JAVA_OPTS: "-Xmx2g -XX:MaxMetaspaceSize=256m"
+          GRADLE_OPTS: "-Xmx2g -XX:MaxMetaspaceSize=256m -Dorg.gradle.jvmargs='-Xmx2g -XX:MaxMetaspaceSize=256m' -Dorg.gradle.daemon=false"
     artifacts:
       - android/app/build/outputs/apk/release/*.apk
     publishing:
