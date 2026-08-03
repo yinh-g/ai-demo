@@ -55,16 +55,21 @@ export default function WorkoutSessionScreen({ navigation, route }: any) {
 
     if (restTimerRef.current) clearInterval(restTimerRef.current);
 
+    const startTime = Date.now();
+    const endTime = startTime + seconds * 1000;
+
     restTimerRef.current = setInterval(() => {
-      setRestTimeRemaining(prev => {
-        if (prev <= 1) {
-          Vibration.vibrate([0, 500, 200, 500]);
-          if (restTimerRef.current) clearInterval(restTimerRef.current);
-          setShowRestTimer(false);
-          return 0;
-        }
-        return prev - 1;
-      });
+      const now = Date.now();
+      const remaining = Math.ceil((endTime - now) / 1000);
+
+      if (remaining <= 0) {
+        Vibration.vibrate([0, 500, 200, 500]);
+        if (restTimerRef.current) clearInterval(restTimerRef.current);
+        setShowRestTimer(false);
+        setRestTimeRemaining(0);
+      } else {
+        setRestTimeRemaining(remaining);
+      }
     }, 1000);
   };
 
@@ -302,7 +307,7 @@ export default function WorkoutSessionScreen({ navigation, route }: any) {
               <Button mode="outlined" onPress={() => addTime(30)} style={styles.restButton} labelStyle={{ color: '#fff', fontSize: 13 }}>
                 +30秒
               </Button>
-              <Button mode="contained" onPress={skipRest} style={[styles.restButton, styles.skipButton]} labelStyle={{ fontSize: 13 }}>
+              <Button mode="contained" onPress={skipRest} style={[styles.restButton, styles.skipButton]} labelStyle={{ color: '#6366F1', fontSize: 13 }}>
                 跳过休息
               </Button>
             </View>
