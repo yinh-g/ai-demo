@@ -146,6 +146,7 @@ export default function ProfileScreen({ navigation }: any) {
             mode="contained"
             onPress={() => navigation.navigate('BodyData')}
             style={styles.editButton}
+            labelStyle={styles.editButtonLabel}
             icon="pencil"
           >
             {userProfile ? '编辑身体数据' : '设置身体数据'}
@@ -352,6 +353,11 @@ const styles = StyleSheet.create({
   editButton: {
     backgroundColor: '#fff',
     borderRadius: 12,
+  },
+  editButtonLabel: {
+    color: '#6366F1',
+    fontSize: 14,
+    fontWeight: '600',
   },
   statsCard: {
     backgroundColor: '#fff',

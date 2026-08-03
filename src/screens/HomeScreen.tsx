@@ -105,6 +105,7 @@ export default function HomeScreen({ navigation }: any) {
                 mode="outlined" 
                 onPress={() => navigation.navigate('Stats')}
                 style={styles.secondaryButton}
+                labelStyle={styles.secondaryButtonLabel}
                 icon="chart-bar"
               >
                 查看统计
@@ -124,6 +125,7 @@ export default function HomeScreen({ navigation }: any) {
                   }
                 }}
                 style={styles.primaryButton}
+                labelStyle={styles.primaryButtonLabel}
                 icon="play"
               >
                 开始训练
@@ -137,6 +139,7 @@ export default function HomeScreen({ navigation }: any) {
                 mode="contained" 
                 onPress={() => navigation.navigate('CreatePlan')}
                 style={styles.primaryButton}
+                labelStyle={styles.primaryButtonLabel}
                 icon="plus"
               >
                 创建计划
@@ -350,9 +353,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 8,
   },
+  primaryButtonLabel: {
+    color: '#6366F1',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   secondaryButton: {
     borderColor: 'rgba(255,255,255,0.5)',
     borderRadius: 8,
+  },
+  secondaryButtonLabel: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   sectionHeader: {
     flexDirection: 'row',
