@@ -26,17 +26,24 @@ export default function ProfileScreen({ navigation }: any) {
       };
       const jsonStr = JSON.stringify(backup, null, 2);
       
-      // 在Web环境下使用clipboard，在移动端使用alert显示
-      if (navigator && navigator.clipboard) {
-        await navigator.clipboard.writeText(jsonStr);
-        Alert.alert('导出成功', '备份数据已复制到剪贴板，请保存到安全位置');
-      } else {
+      // Web环境使用clipboard，移动端使用分享或提示
+      try {
+        if (typeof navigator !== 'undefined' && navigator.clipboard) {
+          await navigator.clipboard.writeText(jsonStr);
+          Alert.alert('导出成功', '备份数据已复制到剪贴板，请保存到安全位置');
+        } else {
+          // React Native 环境：显示数据让用户手动复制
+          Alert.alert(
+            '导出成功',
+            '备份数据已生成（共 ' + jsonStr.length + ' 字符）。由于移动端限制，请使用下方导入功能在同一设备恢复，或截图保存。',
+            [{ text: '确定' }]
+          );
+        }
+      } catch (clipboardError) {
         Alert.alert(
           '导出成功',
-          '请复制以下备份数据并保存到安全位置：',
-          [
-            { text: '确定' }
-          ]
+          '备份数据已生成（共 ' + jsonStr.length + ' 字符）。由于移动端限制，请使用下方导入功能在同一设备恢复，或截图保存。',
+          [{ text: '确定' }]
         );
       }
     } catch (error) {
