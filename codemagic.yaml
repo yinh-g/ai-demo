@@ -8,13 +8,11 @@ workflows:
     scripts:
       - name: Install npm dependencies
         script: npm ci
-      - name: Set up Expo
-        script: |
-          npm install -g expo-cli
-          expo prebuild --platform android
+      - name: Expo Prebuild
+        script: npx expo prebuild --platform android --clean
       - name: Build Android release
         script: |
           cd android
-          ./gradlew assembleRelease
+          ./gradlew assembleRelease --no-daemon
     artifacts:
       - android/app/build/outputs/apk/release/app-release.apk
