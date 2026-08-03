@@ -1,11 +1,13 @@
-import React from 'react';
-import { View, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
-import { Text, Card, Button, FAB, Avatar } from 'react-native-paper';
+import React, { useState } from 'react';
+import { View, StyleSheet, FlatList, Alert } from 'react-native';
+import { Text, Card, Button, FAB, Avatar, Portal, Dialog, IconButton } from 'react-native-paper';
 import { useAppStore } from '../store';
 import { WorkoutPlan } from '../types';
 
 export default function PlanScreen({ navigation }: any) {
-  const { workoutPlans, workoutRecords } = useAppStore();
+  const { workoutPlans, workoutRecords, deleteWorkoutPlan } = useAppStore();
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [planToDelete, setPlanToDelete] = useState<WorkoutPlan | null>(null);
 
   const getPlanStatus = (plan: WorkoutPlan) => {
     const today = new Date().toISOString().split('T')[0];
@@ -22,6 +24,23 @@ export default function PlanScreen({ navigation }: any) {
       case '今日已取消': return '#EF4444';
       default: return '#6366F1';
     }
+  };
+
+  const handleDelete = (plan: WorkoutPlan) => {
+    setPlanToDelete(plan);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDelete = () => {
+    if (planToDelete) {
+      deleteWorkoutPlan(planToDelete.id);
+      setShowDeleteDialog(false);
+      setPlanToDelete(null);
+    }
+  };
+
+  const handleEdit = (plan: WorkoutPlan) => {
+    navigation.navigate('CreatePlan', { editPlanId: plan.id });
   };
 
   const renderPlan = ({ item }: { item: WorkoutPlan }) => {
@@ -44,6 +63,22 @@ export default function PlanScreen({ navigation }: any) {
                   <Text style={[styles.planStatus, { color: statusColor }]}>{status}</Text>
                 </View>
               </View>
+            </View>
+            <View style={styles.actionIcons}>
+              <IconButton
+                icon="pencil"
+                size={20}
+                iconColor="#6366F1"
+                onPress={() => handleEdit(item)}
+                style={styles.iconButton}
+              />
+              <IconButton
+                icon="delete"
+                size={20}
+                iconColor="#EF4444"
+                onPress={() => handleDelete(item)}
+                style={styles.iconButton}
+              />
             </View>
           </View>
         </Card.Content>
@@ -100,6 +135,23 @@ export default function PlanScreen({ navigation }: any) {
         onPress={() => navigation.navigate('CreatePlan')}
         color="#fff"
       />
+
+      <Portal>
+        <Dialog visible={showDeleteDialog} onDismiss={() => setShowDeleteDialog(false)} style={styles.dialog}>
+          <Dialog.Title style={styles.dialogTitle}>删除计划</Dialog.Title>
+          <Dialog.Content>
+            <Text style={styles.deleteText}>
+              确定要删除计划"{planToDelete?.name}"吗？此操作不可恢复。
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setShowDeleteDialog(false)} textColor="#64748B">取消</Button>
+            <Button onPress={confirmDelete} mode="contained" style={{ borderRadius: 8, backgroundColor: '#EF4444' }}>
+              删除
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </View>
   );
 }
@@ -141,6 +193,7 @@ const styles = StyleSheet.create({
   planHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+    justifyContent: 'space-between',
   },
   planInfo: {
     flex: 1,
@@ -184,6 +237,14 @@ const styles = StyleSheet.create({
   planStatus: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  actionIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  iconButton: {
+    margin: 0,
   },
   cardActions: {
     justifyContent: 'flex-end',
@@ -236,5 +297,18 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: '#6366F1',
     borderRadius: 16,
+  },
+  dialog: {
+    borderRadius: 20,
+  },
+  dialogTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1E293B',
+  },
+  deleteText: {
+    fontSize: 15,
+    color: '#475569',
+    lineHeight: 22,
   },
 });

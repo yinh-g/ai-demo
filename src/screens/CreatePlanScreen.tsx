@@ -5,10 +5,13 @@ import { useAppStore } from '../store';
 import { Exercise, PlanExercise } from '../types';
 import { categoryLabels } from '../data/defaultExercises';
 
-export default function CreatePlanScreen({ navigation }: any) {
-  const { exercises, addWorkoutPlan } = useAppStore();
-  const [planName, setPlanName] = useState('');
-  const [selectedExercises, setSelectedExercises] = useState<PlanExercise[]>([]);
+export default function CreatePlanScreen({ navigation, route }: any) {
+  const { exercises, addWorkoutPlan, updateWorkoutPlan, workoutPlans } = useAppStore();
+  const editPlanId = route.params?.editPlanId;
+  const existingPlan = editPlanId ? workoutPlans.find(p => p.id === editPlanId) : null;
+
+  const [planName, setPlanName] = useState(existingPlan?.name || '');
+  const [selectedExercises, setSelectedExercises] = useState<PlanExercise[]>(existingPlan?.exercises || []);
   const [showExerciseDialog, setShowExerciseDialog] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
@@ -43,15 +46,23 @@ export default function CreatePlanScreen({ navigation }: any) {
 
   const handleSavePlan = () => {
     if (planName.trim() && selectedExercises.length > 0) {
-      const plan = {
-        id: Date.now().toString(),
-        name: planName,
-        exercises: selectedExercises,
-        isTemplate: false,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
-      addWorkoutPlan(plan);
+      if (existingPlan) {
+        updateWorkoutPlan(existingPlan.id, {
+          name: planName,
+          exercises: selectedExercises,
+          updatedAt: Date.now(),
+        });
+      } else {
+        const plan = {
+          id: Date.now().toString(),
+          name: planName,
+          exercises: selectedExercises,
+          isTemplate: false,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+        addWorkoutPlan(plan);
+      }
       navigation.goBack();
     }
   };
@@ -78,7 +89,7 @@ export default function CreatePlanScreen({ navigation }: any) {
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Avatar.Icon size={36} icon="playlist-plus" style={styles.headerIcon} color="#6366F1" />
-          <Text style={styles.headerTitle}>创建计划</Text>
+          <Text style={styles.headerTitle}>{existingPlan ? '编辑计划' : '创建计划'}</Text>
         </View>
 
         <TextInput
@@ -207,7 +218,7 @@ export default function CreatePlanScreen({ navigation }: any) {
           labelStyle={styles.saveButtonLabel}
           icon="content-save"
         >
-          保存计划
+          {existingPlan ? '更新计划' : '保存计划'}
         </Button>
       </ScrollView>
 
