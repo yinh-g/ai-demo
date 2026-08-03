@@ -3,8 +3,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { PaperProvider } from 'react-native-paper';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View, Text, ActivityIndicator, StyleSheet, Image } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, ActivityIndicator, StyleSheet, Image, StatusBar } from 'react-native';
 
 import { useAppStore } from './src/store';
 import { defaultExercises } from './src/data/defaultExercises';
@@ -99,19 +99,27 @@ function AppContent() {
 
   return (
     <SafeAreaProvider>
-      <PaperProvider>
-        <NavigationContainer>
-          <Stack.Navigator>
-            <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
-            <Stack.Screen name="ExerciseLibrary" component={ExerciseLibraryScreen} options={{ title: '动作库' }} />
-            <Stack.Screen name="CreatePlan" component={CreatePlanScreen} options={{ title: '创建计划' }} />
-            <Stack.Screen name="WorkoutSession" component={WorkoutSessionScreen} options={{ title: '力量训练' }} />
-            <Stack.Screen name="CardioSession" component={CardioSessionScreen} options={{ title: '有氧训练' }} />
-            <Stack.Screen name="Prediction" component={PredictionScreen} options={{ title: '身体预测' }} />
-            <Stack.Screen name="BodyData" component={BodyDataScreen} options={{ title: '身体数据' }} />
-          </Stack.Navigator>
-        </NavigationContainer>
-      </PaperProvider>
+      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+        <PaperProvider>
+          <NavigationContainer>
+            <Stack.Navigator
+              screenOptions={{
+                headerStyle: { backgroundColor: '#F8FAFC' },
+                headerTintColor: '#1E293B',
+              }}
+            >
+              <Stack.Screen name="Main" component={MainTabs} options={{ headerShown: false }} />
+              <Stack.Screen name="ExerciseLibrary" component={ExerciseLibraryScreen} options={{ title: '动作库' }} />
+              <Stack.Screen name="CreatePlan" component={CreatePlanScreen} options={{ title: '创建计划' }} />
+              <Stack.Screen name="WorkoutSession" component={WorkoutSessionScreen} options={{ title: '力量训练' }} />
+              <Stack.Screen name="CardioSession" component={CardioSessionScreen} options={{ title: '有氧训练' }} />
+              <Stack.Screen name="Prediction" component={PredictionScreen} options={{ title: '身体预测' }} />
+              <Stack.Screen name="BodyData" component={BodyDataScreen} options={{ title: '身体数据' }} />
+            </Stack.Navigator>
+          </NavigationContainer>
+        </PaperProvider>
+      </SafeAreaView>
     </SafeAreaProvider>
   );
 }
