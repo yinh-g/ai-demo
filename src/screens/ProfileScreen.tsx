@@ -1,101 +1,13 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
-import { Text, Card, Button, List, Divider, Avatar, Portal, Dialog, TextInput } from 'react-native-paper';
+import React from 'react';
+import { View, StyleSheet, ScrollView } from 'react-native';
+import { Text, Card, Button, List, Divider, Avatar } from 'react-native-paper';
 import { useAppStore } from '../store';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ProfileScreen({ navigation }: any) {
   const { userProfile, workoutRecords, exercises, workoutPlans } = useAppStore();
-  const [showImportDialog, setShowImportDialog] = useState(false);
-  const [importData, setImportData] = useState('');
 
   const completedWorkouts = workoutRecords.filter(r => r.status === 'completed');
   const totalVolume = completedWorkouts.reduce((sum, r) => sum + r.totalVolume, 0);
-
-  const handleExport = async () => {
-    try {
-      const keys = await AsyncStorage.getAllKeys();
-      const stores = await AsyncStorage.multiGet(keys);
-      const backup = {
-        version: '1.0',
-        exportDate: new Date().toISOString(),
-        data: stores.reduce((acc, [key, value]) => {
-          if (key && value) acc[key] = value;
-          return acc;
-        }, {} as Record<string, string>)
-      };
-      const jsonStr = JSON.stringify(backup, null, 2);
-      
-      // Web环境使用clipboard，移动端使用分享或提示
-      try {
-        if (typeof navigator !== 'undefined' && navigator.clipboard) {
-          await navigator.clipboard.writeText(jsonStr);
-          Alert.alert('导出成功', '备份数据已复制到剪贴板，请保存到安全位置');
-        } else {
-          // React Native 环境：显示数据让用户手动复制
-          Alert.alert(
-            '导出成功',
-            '备份数据已生成（共 ' + jsonStr.length + ' 字符）。由于移动端限制，请使用下方导入功能在同一设备恢复，或截图保存。',
-            [{ text: '确定' }]
-          );
-        }
-      } catch (clipboardError) {
-        Alert.alert(
-          '导出成功',
-          '备份数据已生成（共 ' + jsonStr.length + ' 字符）。由于移动端限制，请使用下方导入功能在同一设备恢复，或截图保存。',
-          [{ text: '确定' }]
-        );
-      }
-    } catch (error) {
-      Alert.alert('导出失败', '备份数据时出错，请重试');
-    }
-  };
-
-  const handleImport = async () => {
-    try {
-      if (!importData.trim()) {
-        Alert.alert('错误', '请输入备份数据');
-        return;
-      }
-
-      const backup = JSON.parse(importData.trim());
-      if (!backup.data || typeof backup.data !== 'object') {
-        Alert.alert('错误', '备份数据格式不正确');
-        return;
-      }
-
-      // 确认导入
-      Alert.alert(
-        '确认导入',
-        '导入将覆盖当前所有数据，确定继续吗？',
-        [
-          { text: '取消', style: 'cancel' },
-          {
-            text: '确定',
-            onPress: async () => {
-              try {
-                const entries = Object.entries(backup.data).map(([key, value]) => [key, value as string]);
-                await AsyncStorage.multiSet(entries);
-                Alert.alert(
-                  '导入成功',
-                  '数据已恢复，请重启应用以生效',
-                  [
-                    { text: '确定' }
-                  ]
-                );
-                setShowImportDialog(false);
-                setImportData('');
-              } catch (e) {
-                Alert.alert('导入失败', '恢复数据时出错');
-              }
-            }
-          }
-        ]
-      );
-    } catch (error) {
-      Alert.alert('错误', '备份数据格式不正确，请检查');
-    }
-  };
 
   return (
     <ScrollView style={styles.container}>
@@ -214,69 +126,7 @@ export default function ProfileScreen({ navigation }: any) {
         </List.Section>
       </Card>
 
-      {/* 数据备份 */}
-      <Card style={styles.card}>
-        <Card.Content>
-          <View style={styles.sectionHeader}>
-            <Avatar.Icon size={20} icon="database" style={styles.sectionIcon} color="#6366F1" />
-            <Text style={styles.sectionTitle}>数据备份</Text>
-          </View>
-          <Text style={styles.backupDesc}>
-            导出备份数据以防止卸载应用后数据丢失。导入将覆盖当前所有数据。
-          </Text>
-          <View style={styles.backupButtons}>
-            <Button
-              mode="outlined"
-              onPress={handleExport}
-              style={styles.backupButton}
-              labelStyle={styles.backupButtonLabel}
-              icon="export"
-              textColor="#6366F1"
-            >
-              导出备份
-            </Button>
-            <Button
-              mode="contained"
-              onPress={() => setShowImportDialog(true)}
-              style={[styles.backupButton, { backgroundColor: '#6366F1' }]}
-              labelStyle={styles.backupButtonLabel}
-              icon="import"
-            >
-              导入恢复
-            </Button>
-          </View>
-        </Card.Content>
-      </Card>
 
-      {/* 导入弹窗 */}
-      <Portal>
-        <Dialog visible={showImportDialog} onDismiss={() => setShowImportDialog(false)} style={styles.dialog}>
-          <Dialog.Title style={styles.dialogTitle}>导入备份数据</Dialog.Title>
-          <Dialog.Content>
-            <Text style={styles.importWarning}>
-              导入将覆盖当前所有数据，请确保已备份当前数据。
-            </Text>
-            <TextInput
-              label="粘贴备份数据"
-              value={importData}
-              onChangeText={setImportData}
-              style={styles.importInput}
-              mode="outlined"
-              multiline
-              numberOfLines={6}
-              outlineColor="#E2E8F0"
-              activeOutlineColor="#6366F1"
-              placeholder="将备份的JSON数据粘贴到这里..."
-            />
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => { setShowImportDialog(false); setImportData(''); }} textColor="#64748B">取消</Button>
-            <Button onPress={handleImport} mode="contained" style={{ borderRadius: 8, backgroundColor: '#6366F1' }}>
-              确认导入
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
     </ScrollView>
   );
 }
@@ -420,43 +270,5 @@ const styles = StyleSheet.create({
   },
   listItem: {
     paddingVertical: 8,
-  },
-  backupDesc: {
-    fontSize: 14,
-    color: '#64748B',
-    marginBottom: 16,
-    lineHeight: 20,
-  },
-  backupButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  backupButton: {
-    flex: 1,
-    borderRadius: 12,
-    borderColor: '#6366F1',
-    borderWidth: 1.5,
-  },
-  backupButtonLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  dialog: {
-    borderRadius: 20,
-  },
-  dialogTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1E293B',
-  },
-  importWarning: {
-    fontSize: 14,
-    color: '#EF4444',
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  importInput: {
-    backgroundColor: '#fff',
-    fontSize: 13,
   },
 });
