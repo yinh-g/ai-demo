@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView, Image } from 'react-native';
 import { Text, Card, Button, List, Divider, Avatar } from 'react-native-paper';
 import { useAppStore } from '../store';
 
@@ -19,11 +19,15 @@ export default function ProfileScreen({ navigation }: any) {
       <View style={styles.userSection}>
         {userProfile ? (
           <View style={styles.userRow}>
-            <View style={[styles.avatarCustom, { backgroundColor: userProfile.avatarColor || '#6366F1' }]}>
-              <Text style={styles.avatarLetter}>
-                {(userProfile.nickname || getGenderLabel(userProfile.gender)).charAt(0).toUpperCase()}
-              </Text>
-            </View>
+            {userProfile.avatarUri ? (
+              <Image source={{ uri: userProfile.avatarUri }} style={styles.avatarImage} />
+            ) : (
+              <View style={[styles.avatarCustom, { backgroundColor: userProfile.avatarColor || '#6366F1' }]}>
+                <Text style={styles.avatarLetter}>
+                  {(userProfile.nickname || getGenderLabel(userProfile.gender)).charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
             <View style={styles.userMeta}>
               <Text style={styles.userMainInfo}>
                 {userProfile.nickname || '训练者'}
@@ -156,6 +160,11 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  avatarImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
   },
   avatarLetter: {
     fontSize: 24,

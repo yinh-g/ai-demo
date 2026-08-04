@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView, Image, Alert } from 'react-native';
 import { Text, Card, Button, TextInput, Chip, Avatar } from 'react-native-paper';
+import * as ImagePicker from 'expo-image-picker';
 import { useAppStore } from '../store';
 import { UserProfile } from '../types';
 
@@ -8,6 +9,8 @@ export default function BodyDataScreen({ navigation }: any) {
   const { userProfile, setUserProfile } = useAppStore();
 
   const avatarColors = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#3B82F6', '#14B8A6'];
+
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     nickname: '',
@@ -28,6 +31,7 @@ export default function BodyDataScreen({ navigation }: any) {
 
   useEffect(() => {
     if (userProfile) {
+      setAvatarUri(userProfile.avatarUri || null);
       setFormData({
         nickname: userProfile.nickname || '',
         avatarColor: userProfile.avatarColor || '#6366F1',
@@ -47,11 +51,31 @@ export default function BodyDataScreen({ navigation }: any) {
     }
   }, [userProfile]);
 
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('需要权限', '请允许访问相册以选择头像');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setAvatarUri(result.assets[0].uri);
+    }
+  };
+
   const handleSave = () => {
     const profile: UserProfile = {
       id: userProfile?.id || Date.now().toString(),
       nickname: formData.nickname.trim() || undefined,
       avatarColor: formData.avatarColor,
+      avatarUri: avatarUri || undefined,
       weight: parseFloat(formData.weight) || 70,
       height: formData.height ? parseFloat(formData.height) : undefined,
       bodyFat: formData.bodyFat ? parseFloat(formData.bodyFat) : undefined,
@@ -91,10 +115,19 @@ export default function BodyDataScreen({ navigation }: any) {
           </View>
 
           <View style={styles.avatarPreviewRow}>
-            <View style={[styles.avatarPreview, { backgroundColor: formData.avatarColor }]}>
-              <Text style={styles.avatarLetter}>
-                {(formData.nickname || '?').charAt(0).toUpperCase()}
-              </Text>
+            <View style={styles.avatarWrapper} onTouchEnd={pickImage}>
+              {avatarUri ? (
+                <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+              ) : (
+                <View style={[styles.avatarPreview, { backgroundColor: formData.avatarColor }]}>
+                  <Text style={styles.avatarLetter}>
+                    {(formData.nickname || '?').charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.avatarEditBadge}>
+                <Avatar.Icon size={16} icon="camera" style={{ backgroundColor: 'transparent' }} color="#fff" />
+              </View>
             </View>
             <TextInput
               label="昵称"
@@ -408,12 +441,35 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     gap: 12,
   },
+  avatarWrapper: {
+    position: 'relative',
+    width: 56,
+    height: 56,
+  },
   avatarPreview: {
     width: 56,
     height: 56,
     borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  avatarImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+  },
+  avatarEditBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#6366F1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   avatarLetter: {
     fontSize: 24,

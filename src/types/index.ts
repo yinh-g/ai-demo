@@ -88,6 +88,7 @@ export interface UserProfile {
   id: string;
   nickname?: string;
   avatarColor?: string;
+  avatarUri?: string;
   weight: number;
   height?: number;
   bodyFat?: number;
