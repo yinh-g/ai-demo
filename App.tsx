@@ -45,16 +45,33 @@ function MainTabs() {
             <Image
               source={iconSource}
               style={{
-                width: size,
-                height: size,
-                tintColor: focused ? '#1A5F7A' : '#999',
+                width: size - 2,
+                height: size - 2,
+                tintColor: focused ? '#6366F1' : '#94A3B8',
               }}
               resizeMode="contain"
             />
           );
         },
-        tabBarActiveTintColor: '#1A5F7A',
-        tabBarInactiveTintColor: '#999',
+        tabBarActiveTintColor: '#6366F1',
+        tabBarInactiveTintColor: '#94A3B8',
+        tabBarStyle: {
+          height: 56,
+          paddingBottom: 6,
+          paddingTop: 4,
+          borderTopWidth: 1,
+          borderTopColor: '#F1F5F9',
+          elevation: 8,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 4,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '500',
+          marginTop: -2,
+        },
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} options={{ title: '首页' }} />
