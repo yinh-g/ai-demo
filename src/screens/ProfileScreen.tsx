@@ -19,18 +19,17 @@ export default function ProfileScreen({ navigation }: any) {
       <View style={styles.userSection}>
         {userProfile ? (
           <View style={styles.userRow}>
-            <Avatar.Icon
-              size={56}
-              icon={userProfile.gender === 'male' ? 'face-man' : 'face-woman'}
-              style={styles.avatar}
-              color="#6366F1"
-            />
+            <View style={[styles.avatarCustom, { backgroundColor: userProfile.avatarColor || '#6366F1' }]}>
+              <Text style={styles.avatarLetter}>
+                {(userProfile.nickname || getGenderLabel(userProfile.gender)).charAt(0).toUpperCase()}
+              </Text>
+            </View>
             <View style={styles.userMeta}>
               <Text style={styles.userMainInfo}>
-                {getGenderLabel(userProfile.gender)} · {userProfile.age}岁 · {userProfile.weight}kg
+                {userProfile.nickname || '训练者'}
               </Text>
               <Text style={styles.userSubInfo}>
-                训练 {userProfile.trainingYears} 年 · 睡眠 {userProfile.sleepHours}h · 蛋白 {userProfile.proteinIntake}g/kg
+                {getGenderLabel(userProfile.gender)} · {userProfile.age}岁 · {userProfile.weight}kg · 训练{userProfile.trainingYears}年
               </Text>
             </View>
             <Button
@@ -150,6 +149,18 @@ const styles = StyleSheet.create({
   },
   avatar: {
     backgroundColor: '#EEF2FF',
+  },
+  avatarCustom: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarLetter: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   userMeta: {
     flex: 1,

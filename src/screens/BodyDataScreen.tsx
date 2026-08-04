@@ -7,7 +7,11 @@ import { UserProfile } from '../types';
 export default function BodyDataScreen({ navigation }: any) {
   const { userProfile, setUserProfile } = useAppStore();
 
+  const avatarColors = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#3B82F6', '#14B8A6'];
+
   const [formData, setFormData] = useState({
+    nickname: '',
+    avatarColor: '#6366F1',
     weight: '',
     height: '',
     bodyFat: '',
@@ -25,6 +29,8 @@ export default function BodyDataScreen({ navigation }: any) {
   useEffect(() => {
     if (userProfile) {
       setFormData({
+        nickname: userProfile.nickname || '',
+        avatarColor: userProfile.avatarColor || '#6366F1',
         weight: userProfile.weight.toString(),
         height: userProfile.height?.toString() || '',
         bodyFat: userProfile.bodyFat?.toString() || '',
@@ -44,6 +50,8 @@ export default function BodyDataScreen({ navigation }: any) {
   const handleSave = () => {
     const profile: UserProfile = {
       id: userProfile?.id || Date.now().toString(),
+      nickname: formData.nickname.trim() || undefined,
+      avatarColor: formData.avatarColor,
       weight: parseFloat(formData.weight) || 70,
       height: formData.height ? parseFloat(formData.height) : undefined,
       bodyFat: formData.bodyFat ? parseFloat(formData.bodyFat) : undefined,
@@ -73,6 +81,54 @@ export default function BodyDataScreen({ navigation }: any) {
         <Avatar.Icon size={36} icon="account-details" style={styles.headerIcon} color="#6366F1" />
         <Text style={styles.title}>身体数据</Text>
       </View>
+
+      {/* 头像和昵称 */}
+      <Card style={styles.card}>
+        <Card.Content>
+          <View style={styles.sectionHeader}>
+            <Avatar.Icon size={18} icon="account-circle" style={styles.sectionIcon} color="#6366F1" />
+            <Text style={styles.sectionTitle}>个人资料</Text>
+          </View>
+
+          <View style={styles.avatarPreviewRow}>
+            <View style={[styles.avatarPreview, { backgroundColor: formData.avatarColor }]}>
+              <Text style={styles.avatarLetter}>
+                {(formData.nickname || '?').charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <TextInput
+              label="昵称"
+              value={formData.nickname}
+              onChangeText={text => setFormData({ ...formData, nickname: text })}
+              style={[styles.input, styles.nicknameInput]}
+              mode="outlined"
+              outlineColor="#E2E8F0"
+              activeOutlineColor="#6366F1"
+              placeholder="输入你的昵称"
+              left={<TextInput.Icon icon="rename-box" color="#94A3B8" />}
+            />
+          </View>
+
+          <Text style={styles.colorLabel}>头像颜色</Text>
+          <View style={styles.colorPicker}>
+            {avatarColors.map(color => (
+              <View
+                key={color}
+                style={[
+                  styles.colorOption,
+                  { backgroundColor: color },
+                  formData.avatarColor === color && styles.colorOptionActive
+                ]}
+                onTouchEnd={() => setFormData({ ...formData, avatarColor: color })}
+              >
+                {formData.avatarColor === color && (
+                  <Avatar.Icon size={16} icon="check" style={{ backgroundColor: 'transparent' }} color="#fff" />
+                )}
+              </View>
+            ))}
+          </View>
+        </Card.Content>
+      </Card>
 
       <Card style={styles.card}>
         <Card.Content>
@@ -345,5 +401,55 @@ const styles = StyleSheet.create({
   saveButtonLabel: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  avatarPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
+  avatarPreview: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarLetter: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  nicknameInput: {
+    flex: 1,
+    backgroundColor: '#fff',
+    marginBottom: 0,
+  },
+  colorLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1E293B',
+    marginBottom: 10,
+  },
+  colorPicker: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  colorOption: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  colorOptionActive: {
+    borderWidth: 3,
+    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
   },
 });

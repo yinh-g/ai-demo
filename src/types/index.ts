@@ -86,6 +86,8 @@ export interface WorkoutRecord {
 // 用户资料
 export interface UserProfile {
   id: string;
+  nickname?: string;
+  avatarColor?: string;
   weight: number;
   height?: number;
   bodyFat?: number;
