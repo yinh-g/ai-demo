@@ -9,7 +9,7 @@ import { MuscleGrowthPrediction, BodyRecompositionPrediction } from '../types';
 type PredictionTab = 'muscle' | 'fatloss' | 'recomposition';
 
 export default function PredictionScreen({ navigation }: any) {
-  const { userProfile, workoutRecords } = useAppStore();
+  const { userProfile, workoutRecords, dailyActivities } = useAppStore();
   const [activeTab, setActiveTab] = useState<PredictionTab>('recomposition');
   const [musclePrediction, setMusclePrediction] = useState<MuscleGrowthPrediction | null>(null);
   const [recomposition, setRecomposition] = useState<BodyRecompositionPrediction | null>(null);
@@ -30,6 +30,17 @@ export default function PredictionScreen({ navigation }: any) {
       const weeklyCardioMinutes = cardioRecords.reduce((sum, r) => sum + r.duration, 0);
       const weeklyCardioCalories = cardioRecords.reduce((sum, r) => sum + (r.totalCalories || 0), 0);
       const weeklyStrengthMinutes = strengthRecords.reduce((sum, r) => sum + r.duration, 0);
+
+      // 计算最近7天的日常活动数据
+      const weekStart = new Date();
+      weekStart.setDate(weekStart.getDate() - 7);
+      const weekActivities = dailyActivities.filter(a => new Date(a.date) >= weekStart);
+      const dailyActiveCalories = weekActivities.length > 0
+        ? weekActivities.reduce((sum, a) => sum + a.activeCalories, 0) / weekActivities.length
+        : 0;
+      const dailySteps = weekActivities.length > 0
+        ? weekActivities.reduce((sum, a) => sum + a.steps, 0) / weekActivities.length
+        : 0;
 
       const muscleInput = {
         userWeight: userProfile.weight,
@@ -61,7 +72,7 @@ export default function PredictionScreen({ navigation }: any) {
         height: userProfile.height,
         bodyFat: userProfile.bodyFat,
         weeklyCardioMinutes,
-        weeklyCardioCalories,
+        weeklyCardioCalories: weeklyCardioCalories + Math.round(dailyActiveCalories * 7),
         weeklyStrengthMinutes,
         dailyCalorieIntake: userProfile.dailyCalorieIntake || 2000,
         proteinIntake: userProfile.proteinIntake,

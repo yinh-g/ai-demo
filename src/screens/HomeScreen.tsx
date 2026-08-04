@@ -1,10 +1,37 @@
-import React from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
-import { Text, Card, Button, Divider, Avatar, ProgressBar } from 'react-native-paper';
+import React, { useState } from 'react';
+import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { Text, Card, Button, Divider, Avatar, ProgressBar, TextInput, Portal, Dialog } from 'react-native-paper';
 import { useAppStore } from '../store';
 
 export default function HomeScreen({ navigation }: any) {
-  const { workoutPlans, workoutRecords } = useAppStore();
+  const { workoutPlans, workoutRecords, dailyActivities, setDailyActivity, getTodayActivity } = useAppStore();
+  const todayActivity = getTodayActivity();
+
+  const [showActivityDialog, setShowActivityDialog] = useState(false);
+  const [activityInput, setActivityInput] = useState({ steps: '', calories: '', distance: '' });
+
+  const handleSaveActivity = () => {
+    const steps = parseInt(activityInput.steps) || 0;
+    const calories = parseInt(activityInput.calories) || 0;
+    const distance = parseFloat(activityInput.distance) || 0;
+
+    if (steps <= 0 && calories <= 0) {
+      Alert.alert('提示', '请至少输入步数或消耗卡路里');
+      return;
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    setDailyActivity({
+      date: today,
+      steps,
+      activeCalories: calories,
+      distanceKm: distance,
+      source: 'manual',
+      updatedAt: Date.now(),
+    });
+    setShowActivityDialog(false);
+    setActivityInput({ steps: '', calories: '', distance: '' });
+  };
   
   const getTodayString = () => {
     try {
@@ -203,6 +230,59 @@ export default function HomeScreen({ navigation }: any) {
         </Card>
       </View>
 
+      {/* 今日活动 */}
+      <Card style={styles.card}>
+        <Card.Content>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>今日活动</Text>
+            <Button
+              mode="text"
+              onPress={() => setShowActivityDialog(true)}
+              labelStyle={{ fontSize: 13, color: '#6366F1' }}
+              icon="pencil"
+              compact
+            >
+              {todayActivity ? '更新' : '记录'}
+            </Button>
+          </View>
+
+          {todayActivity ? (
+            <View style={styles.activityRow}>
+              <View style={styles.activityItem}>
+                <Avatar.Icon size={28} icon="walk" style={{ backgroundColor: 'transparent' }} color="#6366F1" />
+                <Text style={styles.activityValue}>{todayActivity.steps.toLocaleString()}</Text>
+                <Text style={styles.activityLabel}>步数</Text>
+              </View>
+              <View style={styles.activityDivider} />
+              <View style={styles.activityItem}>
+                <Avatar.Icon size={28} icon="fire" style={{ backgroundColor: 'transparent' }} color="#EF4444" />
+                <Text style={styles.activityValue}>{todayActivity.activeCalories}</Text>
+                <Text style={styles.activityLabel}>消耗(kcal)</Text>
+              </View>
+              <View style={styles.activityDivider} />
+              <View style={styles.activityItem}>
+                <Avatar.Icon size={28} icon="map-marker-distance" style={{ backgroundColor: 'transparent' }} color="#10B981" />
+                <Text style={styles.activityValue}>{todayActivity.distanceKm.toFixed(1)}</Text>
+                <Text style={styles.activityLabel}>距离(km)</Text>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.emptyActivity}>
+              <Text style={styles.emptyActivityText}>记录今日步数和消耗，让预测更准确</Text>
+              <Button
+                mode="outlined"
+                onPress={() => setShowActivityDialog(true)}
+                style={styles.recordActivityButton}
+                labelStyle={{ fontSize: 13, color: '#6366F1' }}
+                icon="plus"
+              >
+                记录活动数据
+              </Button>
+            </View>
+          )}
+        </Card.Content>
+      </Card>
+
       {/* 最近训练 */}
       <Card style={styles.card}>
         <Card.Content>
@@ -243,6 +323,51 @@ export default function HomeScreen({ navigation }: any) {
           )}
         </Card.Content>
       </Card>
+      {/* 活动数据弹窗 */}
+      <Portal>
+        <Dialog visible={showActivityDialog} onDismiss={() => setShowActivityDialog(false)} style={styles.dialog}>
+          <Dialog.Title style={styles.dialogTitle}>记录今日活动</Dialog.Title>
+          <Dialog.Content>
+            <TextInput
+              label="步数"
+              value={activityInput.steps}
+              onChangeText={text => setActivityInput({ ...activityInput, steps: text })}
+              keyboardType="numeric"
+              style={styles.input}
+              mode="outlined"
+              outlineColor="#E2E8F0"
+              activeOutlineColor="#6366F1"
+              left={<TextInput.Icon icon="walk" color="#94A3B8" />}
+            />
+            <TextInput
+              label="活跃消耗 (kcal)"
+              value={activityInput.calories}
+              onChangeText={text => setActivityInput({ ...activityInput, calories: text })}
+              keyboardType="numeric"
+              style={styles.input}
+              mode="outlined"
+              outlineColor="#E2E8F0"
+              activeOutlineColor="#6366F1"
+              left={<TextInput.Icon icon="fire" color="#94A3B8" />}
+            />
+            <TextInput
+              label="距离 (km)"
+              value={activityInput.distance}
+              onChangeText={text => setActivityInput({ ...activityInput, distance: text })}
+              keyboardType="numeric"
+              style={styles.input}
+              mode="outlined"
+              outlineColor="#E2E8F0"
+              activeOutlineColor="#6366F1"
+              left={<TextInput.Icon icon="map-marker-distance" color="#94A3B8" />}
+            />
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setShowActivityDialog(false)} textColor="#64748B">取消</Button>
+            <Button onPress={handleSaveActivity} mode="contained" style={{ borderRadius: 8, backgroundColor: '#6366F1' }}>保存</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </ScrollView>
   );
 }
@@ -518,5 +643,56 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#94A3B8',
     marginTop: 4,
+  },
+  activityRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  activityItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  activityValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1E293B',
+    marginTop: 4,
+  },
+  activityLabel: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  activityDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: '#F1F5F9',
+  },
+  emptyActivity: {
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  emptyActivityText: {
+    fontSize: 14,
+    color: '#94A3B8',
+    marginBottom: 12,
+  },
+  recordActivityButton: {
+    borderRadius: 8,
+    borderColor: '#6366F1',
+  },
+  dialog: {
+    borderRadius: 20,
+  },
+  dialogTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1E293B',
+  },
+  input: {
+    marginBottom: 10,
+    backgroundColor: '#fff',
   },
 });

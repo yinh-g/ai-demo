@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Exercise, WorkoutPlan, WorkoutRecord, UserProfile, CardioActivity, WorkoutType } from '../types';
+import { Exercise, WorkoutPlan, WorkoutRecord, UserProfile, CardioActivity, WorkoutType, DailyActivity } from '../types';
 
 interface AppState {
   // 用户资料
@@ -40,6 +40,11 @@ interface AppState {
   resumeCardio: () => void;
   endCardio: (data: { duration: number; distance?: number; calories?: number }) => void;
   cancelCardio: () => void;
+
+  // 每日活动数据
+  dailyActivities: DailyActivity[];
+  setDailyActivity: (activity: DailyActivity) => void;
+  getTodayActivity: () => DailyActivity | undefined;
 }
 
 export const useAppStore = create<AppState>()(
@@ -198,6 +203,17 @@ export const useAppStore = create<AppState>()(
             currentCardio: null
           }));
         }
+      },
+
+      // 每日活动数据
+      dailyActivities: [],
+      setDailyActivity: (activity) => set((state) => {
+        const filtered = state.dailyActivities.filter(a => a.date !== activity.date);
+        return { dailyActivities: [...filtered, activity] };
+      }),
+      getTodayActivity: () => {
+        const today = new Date().toISOString().split('T')[0];
+        return get().dailyActivities.find(a => a.date === today);
       }
     }),
     {

@@ -83,6 +83,16 @@ export interface WorkoutRecord {
   status: 'completed' | 'cancelled';
 }
 
+// 每日活动数据
+export interface DailyActivity {
+  date: string;
+  steps: number;
+  activeCalories: number;
+  distanceKm: number;
+  source: 'manual' | 'health_connect';
+  updatedAt: number;
+}
+
 // 用户资料
 export interface UserProfile {
   id: string;
