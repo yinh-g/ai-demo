@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "FitTrack - 训练记录",
+    "name": "FitTrack",
     "slug": "fittrack",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,21 +9,21 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1A5F7A"
+      "backgroundColor": "#6366F1"
     },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.fitnesstracker"
+      "bundleIdentifier": "com.yourcompany.fittrack"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#1A5F7A",
-        "foregroundImage": "./assets/icon.png"
+        "backgroundColor": "#6366F1",
+        "foregroundImage": "./assets/android-icon-foreground.png"
       },
-      "package": "com.yourcompany.fitnesstracker",
+      "package": "com.yourcompany.fittrack",
       "versionCode": 1
     },
     "web": {
