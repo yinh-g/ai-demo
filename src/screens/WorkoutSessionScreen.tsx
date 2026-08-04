@@ -141,7 +141,7 @@ export default function WorkoutSessionScreen({ navigation, route }: any) {
   };
 
   const handleCancel = () => {
-    cancelWorkout();
+    endWorkout();
     navigation.goBack();
   };
 
@@ -301,18 +301,18 @@ export default function WorkoutSessionScreen({ navigation, route }: any) {
             <Text style={styles.restExerciseInfo}>
               {currentExercise?.name} 第{completedSets.length}组已完成
             </Text>
-            <View style={styles.restButtons}>
-              <Button mode="outlined" onPress={() => addTime(10)} style={styles.restButton} labelStyle={{ color: '#fff', fontSize: 12 }}>
-                +10秒
-              </Button>
-              <Button mode="outlined" onPress={() => addTime(30)} style={styles.restButton} labelStyle={{ color: '#fff', fontSize: 12 }}>
-                +30秒
-              </Button>
-              <Button mode="contained" onPress={skipRest} style={[styles.restButton, styles.skipButton]} labelStyle={{ color: '#6366F1', fontSize: 12 }}>
-                跳过休息
-              </Button>
-            </View>
           </Dialog.Content>
+          <Dialog.Actions style={styles.restActions}>
+            <Button mode="outlined" onPress={() => addTime(10)} style={styles.restActionButton} labelStyle={{ color: '#fff', fontSize: 12 }}>
+              +10秒
+            </Button>
+            <Button mode="outlined" onPress={() => addTime(30)} style={styles.restActionButton} labelStyle={{ color: '#fff', fontSize: 12 }}>
+              +30秒
+            </Button>
+            <Button mode="contained" onPress={skipRest} style={[styles.restActionButton, styles.skipActionButton]} labelStyle={{ color: '#6366F1', fontSize: 12 }}>
+              跳过休息
+            </Button>
+          </Dialog.Actions>
         </Dialog>
       </Portal>
     </View>
@@ -548,19 +548,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 8,
   },
-  restButtons: {
+  restActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     width: '100%',
-    marginTop: 16,
+    paddingHorizontal: 24,
+    paddingBottom: 24,
     gap: 8,
   },
-  restButton: {
+  restActionButton: {
     flex: 1,
     borderRadius: 10,
     borderColor: 'rgba(255,255,255,0.5)',
   },
-  skipButton: {
+  skipActionButton: {
     backgroundColor: '#fff',
   },
   emptyIcon: {

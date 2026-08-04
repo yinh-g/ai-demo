@@ -214,7 +214,10 @@ export default function HomeScreen({ navigation }: any) {
           {recentRecords.length > 0 ? (
             recentRecords.map((record, index) => (
               <View key={record?.id || index}>
-                <View style={styles.recordItem}>
+                <View
+                  style={styles.recordItem}
+                  onTouchEnd={() => record?.id && navigation.navigate('WorkoutRecordDetail', { recordId: record.id })}
+                >
                   <View style={styles.recordLeft}>
                     <Avatar.Icon size={40} icon="check-circle" style={styles.recordIcon} color="#10B981" />
                     <View style={styles.recordInfo}>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
-import { Text, Card, Button, Avatar } from 'react-native-paper';
+import { Text, Card, Button, Avatar, Divider } from 'react-native-paper';
 import { useAppStore } from '../store';
 
 export default function StatsScreen({ navigation }: any) {
@@ -217,6 +217,41 @@ export default function StatsScreen({ navigation }: any) {
         </Card>
       )}
 
+      <Card style={styles.card}>
+        <Card.Content>
+          <View style={styles.sectionHeader}>
+            <Avatar.Icon size={24} icon="history" style={styles.sectionIcon} color="#6366F1" />
+            <Text style={styles.sectionTitle}>历史记录</Text>
+          </View>
+          {strengthRecords.length > 0 ? (
+            strengthRecords.slice(-5).reverse().map((record, index) => (
+              <View key={record.id}>
+                <View
+                  style={styles.recordItem}
+                  onTouchEnd={() => navigation.navigate('WorkoutRecordDetail', { recordId: record.id })}
+                >
+                  <View style={styles.recordLeft}>
+                    <Avatar.Icon size={36} icon="dumbbell" style={styles.recordIcon} color="#6366F1" />
+                    <View style={styles.recordInfo}>
+                      <Text style={styles.recordDate}>{record.date}</Text>
+                      <Text style={styles.recordVolume}>
+                        容量: {(record.totalVolume || 0).toLocaleString()} kg · {record.duration}分钟
+                      </Text>
+                    </View>
+                  </View>
+                  <Avatar.Icon size={20} icon="chevron-right" style={{ backgroundColor: 'transparent' }} color="#94A3B8" />
+                </View>
+                {index < Math.min(strengthRecords.length, 5) - 1 && <Divider style={styles.recordDivider} />}
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.noRecord}>暂无训练记录</Text>
+            </View>
+          )}
+        </Card.Content>
+      </Card>
+
       <Button
         mode="contained"
         onPress={() => navigation.navigate('Prediction')}
@@ -384,5 +419,44 @@ const styles = StyleSheet.create({
   predictionButtonLabel: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  recordItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  recordLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  recordIcon: {
+    backgroundColor: '#EEF2FF',
+  },
+  recordInfo: {
+    marginLeft: 12,
+  },
+  recordDate: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#1E293B',
+  },
+  recordVolume: {
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  recordDivider: {
+    marginVertical: 4,
+    backgroundColor: '#F1F5F9',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  noRecord: {
+    fontSize: 15,
+    color: '#94A3B8',
   },
 });

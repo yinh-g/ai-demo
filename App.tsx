@@ -21,6 +21,7 @@ import WorkoutSessionScreen from './src/screens/WorkoutSessionScreen';
 import CardioSessionScreen from './src/screens/CardioSessionScreen';
 import PredictionScreen from './src/screens/PredictionScreen';
 import BodyDataScreen from './src/screens/BodyDataScreen';
+import WorkoutRecordDetailScreen from './src/screens/WorkoutRecordDetailScreen';
 
 // 导入图标
 const icons = {
@@ -116,6 +117,7 @@ function AppContent() {
               <Stack.Screen name="CardioSession" component={CardioSessionScreen} options={{ title: '有氧训练' }} />
               <Stack.Screen name="Prediction" component={PredictionScreen} options={{ title: '身体预测' }} />
               <Stack.Screen name="BodyData" component={BodyDataScreen} options={{ title: '身体数据' }} />
+              <Stack.Screen name="WorkoutRecordDetail" component={WorkoutRecordDetailScreen} options={{ title: '训练详情' }} />
             </Stack.Navigator>
           </NavigationContainer>
         </PaperProvider>

@@ -24,6 +24,7 @@ interface AppState {
   workoutRecords: WorkoutRecord[];
   addWorkoutRecord: (record: WorkoutRecord) => void;
   updateWorkoutRecord: (id: string, record: Partial<WorkoutRecord>) => void;
+  deleteWorkoutRecord: (id: string) => void;
 
   // 当前训练（力量）
   currentWorkout: WorkoutRecord | null;
@@ -85,6 +86,9 @@ export const useAppStore = create<AppState>()(
         workoutRecords: state.workoutRecords.map((r) =>
           r.id === id ? { ...r, ...record } : r
         )
+      })),
+      deleteWorkoutRecord: (id) => set((state) => ({
+        workoutRecords: state.workoutRecords.filter((r) => r.id !== id)
       })),
 
       // 当前力量训练
