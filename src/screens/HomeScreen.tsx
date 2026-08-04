@@ -1,76 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import { Text, Card, Button, Divider, Avatar, ProgressBar, TextInput, Portal, Dialog } from 'react-native-paper';
-import { Pedometer } from 'expo-sensors';
 import { useAppStore } from '../store';
+import { useHealthConnect } from '../hooks/useHealthConnect';
 
 export default function HomeScreen({ navigation }: any) {
-  const { workoutPlans, workoutRecords, dailyActivities, setDailyActivity, getTodayActivity } = useAppStore();
+  const { workoutPlans, workoutRecords, setDailyActivity, getTodayActivity } = useAppStore();
   const todayActivity = getTodayActivity();
+
+  const {
+    isAvailable: isHealthConnectAvailable,
+    isAuthorized: isHealthConnectAuthorized,
+    isLoading: isHealthConnectLoading,
+    syncTodayData,
+    requestPermissions,
+  } = useHealthConnect();
 
   const [showActivityDialog, setShowActivityDialog] = useState(false);
   const [activityInput, setActivityInput] = useState({ steps: '', calories: '', distance: '' });
-  const [isPedometerAvailable, setIsPedometerAvailable] = useState<boolean | null>(null);
-  const [autoSteps, setAutoSteps] = useState(0);
-
-  // 自动同步计步器数据
-  useEffect(() => {
-    let subscription: any;
-
-    const subscribe = async () => {
-      const available = await Pedometer.isAvailableAsync();
-      setIsPedometerAvailable(available);
-
-      if (available) {
-        // 获取今日步数
-        const now = new Date();
-        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const result = await Pedometer.getStepCountAsync(startOfDay, now);
-        if (result) {
-          setAutoSteps(result.steps);
-          // 自动保存到状态
-          const today = now.toISOString().split('T')[0];
-          const existing = dailyActivities.find(a => a.date === today);
-          if (!existing || existing.source === 'manual') {
-            const estimatedCalories = Math.round(result.steps * 0.04);
-            const estimatedDistance = parseFloat((result.steps * 0.0007).toFixed(1));
-            setDailyActivity({
-              date: today,
-              steps: result.steps,
-              activeCalories: estimatedCalories,
-              distanceKm: estimatedDistance,
-              source: 'health_connect',
-              updatedAt: Date.now(),
-            });
-          }
-        }
-
-        // 监听实时步数变化
-        subscription = Pedometer.watchStepCount(result => {
-          setAutoSteps(result.steps);
-          const today = new Date().toISOString().split('T')[0];
-          const estimatedCalories = Math.round(result.steps * 0.04);
-          const estimatedDistance = parseFloat((result.steps * 0.0007).toFixed(1));
-          setDailyActivity({
-            date: today,
-            steps: result.steps,
-            activeCalories: estimatedCalories,
-            distanceKm: estimatedDistance,
-            source: 'health_connect',
-            updatedAt: Date.now(),
-          });
-        });
-      }
-    };
-
-    subscribe();
-
-    return () => {
-      if (subscription) {
-        subscription.remove();
-      }
-    };
-  }, []);
 
   const handleSaveActivity = () => {
     const steps = parseInt(activityInput.steps) || 0;
@@ -298,17 +245,34 @@ export default function HomeScreen({ navigation }: any) {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>今日活动</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              {isPedometerAvailable && (
+              {isHealthConnectAvailable && isHealthConnectAuthorized && (
                 <View style={styles.autoSyncBadge}>
                   <Avatar.Icon size={12} icon="sync" style={{ backgroundColor: 'transparent' }} color="#10B981" />
-                  <Text style={styles.autoSyncText}>自动</Text>
+                  <Text style={styles.autoSyncText}>Health</Text>
                 </View>
+              )}
+              {isHealthConnectAvailable && !isHealthConnectAuthorized && (
+                <Button
+                  mode="text"
+                  onPress={requestPermissions}
+                  labelStyle={{ fontSize: 12, color: '#F59E0B' }}
+                  icon="lock-open"
+                  compact
+                >
+                  授权
+                </Button>
               )}
               <Button
                 mode="text"
-                onPress={() => setShowActivityDialog(true)}
+                onPress={() => {
+                  if (isHealthConnectAvailable && isHealthConnectAuthorized) {
+                    syncTodayData();
+                  } else {
+                    setShowActivityDialog(true);
+                  }
+                }}
                 labelStyle={{ fontSize: 13, color: '#6366F1' }}
-                icon="pencil"
+                icon={isHealthConnectLoading ? 'loading' : 'pencil'}
                 compact
               >
                 {todayActivity ? '更新' : '记录'}
