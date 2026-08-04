@@ -1,23 +1,111 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import { Text, Card, Button, Divider, Avatar, ProgressBar, TextInput, Portal, Dialog } from 'react-native-paper';
+import { Pedometer } from 'expo-sensors';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppStore } from '../store';
-import { useHealthConnect } from '../hooks/useHealthConnect';
 
 export default function HomeScreen({ navigation }: any) {
-  const { workoutPlans, workoutRecords, setDailyActivity, getTodayActivity } = useAppStore();
+  const { workoutPlans, workoutRecords, dailyActivities, setDailyActivity, getTodayActivity } = useAppStore();
   const todayActivity = getTodayActivity();
-
-  const {
-    isAvailable: isHealthConnectAvailable,
-    isAuthorized: isHealthConnectAuthorized,
-    isLoading: isHealthConnectLoading,
-    syncTodayData,
-    requestPermissions,
-  } = useHealthConnect();
 
   const [showActivityDialog, setShowActivityDialog] = useState(false);
   const [activityInput, setActivityInput] = useState({ steps: '', calories: '', distance: '' });
+  const [isPedometerAvailable, setIsPedometerAvailable] = useState<boolean | null>(null);
+
+  // 自动同步计步器数据
+  useEffect(() => {
+    let subscription: any;
+
+    const subscribe = async () => {
+      const available = await Pedometer.isAvailableAsync();
+      setIsPedometerAvailable(available);
+
+      if (available) {
+        const now = new Date();
+        const today = now.toISOString().split('T')[0];
+
+        // 获取上次打开时间
+        const lastOpenStr = await AsyncStorage.getItem('lastAppOpenTime');
+        const lastOpen = lastOpenStr ? new Date(lastOpenStr) : null;
+
+        // 获取今日步数（从0点开始）
+        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const result = await Pedometer.getStepCountAsync(startOfDay, now);
+
+        if (result) {
+          // 如果有上次打开记录，且是今天，尝试补齐关闭期间的步数
+          if (lastOpen && lastOpen.toISOString().split('T')[0] === today) {
+            // 上次也是今天，读取上次打开到现在的步数增量
+            const incrementalResult = await Pedometer.getStepCountAsync(lastOpen, now);
+            if (incrementalResult && incrementalResult.steps > 0) {
+              const existing = dailyActivities.find(a => a.date === today);
+              const currentSteps = existing ? existing.steps : 0;
+              const newSteps = Math.max(result.steps, currentSteps + incrementalResult.steps);
+              const estimatedCalories = Math.round(newSteps * 0.04);
+              const estimatedDistance = parseFloat((newSteps * 0.0007).toFixed(1));
+              setDailyActivity({
+                date: today,
+                steps: newSteps,
+                activeCalories: estimatedCalories,
+                distanceKm: estimatedDistance,
+                source: 'health_connect',
+                updatedAt: Date.now(),
+              });
+            } else {
+              // 直接保存今日累计
+              saveTodaySteps(result.steps, today);
+            }
+          } else {
+            // 上次不是今天或没有记录，直接保存今日累计
+            saveTodaySteps(result.steps, today);
+          }
+        }
+
+        // 保存本次打开时间
+        await AsyncStorage.setItem('lastAppOpenTime', now.toISOString());
+
+        // 监听实时步数变化
+        subscription = Pedometer.watchStepCount(result => {
+          const today = new Date().toISOString().split('T')[0];
+          const estimatedCalories = Math.round(result.steps * 0.04);
+          const estimatedDistance = parseFloat((result.steps * 0.0007).toFixed(1));
+          setDailyActivity({
+            date: today,
+            steps: result.steps,
+            activeCalories: estimatedCalories,
+            distanceKm: estimatedDistance,
+            source: 'health_connect',
+            updatedAt: Date.now(),
+          });
+        });
+      }
+    };
+
+    const saveTodaySteps = (steps: number, today: string) => {
+      const existing = dailyActivities.find(a => a.date === today);
+      if (!existing || existing.source === 'manual') {
+        const estimatedCalories = Math.round(steps * 0.04);
+        const estimatedDistance = parseFloat((steps * 0.0007).toFixed(1));
+        setDailyActivity({
+          date: today,
+          steps,
+          activeCalories: estimatedCalories,
+          distanceKm: estimatedDistance,
+          source: 'health_connect',
+          updatedAt: Date.now(),
+        });
+      }
+    };
+
+    subscribe();
+
+    return () => {
+      if (subscription) {
+        subscription.remove();
+      }
+    };
+  }, []);
 
   const handleSaveActivity = () => {
     const steps = parseInt(activityInput.steps) || 0;
@@ -41,202 +129,30 @@ export default function HomeScreen({ navigation }: any) {
     setShowActivityDialog(false);
     setActivityInput({ steps: '', calories: '', distance: '' });
   };
-  
-  const getTodayString = () => {
-    try {
-      return new Date().toISOString().split('T')[0];
-    } catch {
-      return '';
-    }
-  };
-  
-  const today = getTodayString();
-  const todayRecord = workoutRecords?.find(r => r && r.date === today) || null;
-  const recentRecords = Array.isArray(workoutRecords) ? workoutRecords.slice(-3).reverse() : [];
-  
-  const getWeekDays = () => {
-    try {
-      const days = [];
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        days.push(d.toISOString().split('T')[0]);
-      }
-      return days;
-    } catch {
-      return [];
-    }
-  };
-  
-  const weekDays = getWeekDays();
-  const trainedDays = weekDays.filter(date => 
-    workoutRecords?.some(r => r && r.date === date && r.status === 'completed')
-  );
 
-  const getDisplayDate = () => {
-    try {
-      return new Date().toLocaleDateString('zh-CN', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric', 
-        weekday: 'long' 
-      });
-    } catch {
-      return new Date().toDateString();
+  const recentRecords = workoutRecords.slice(-3).reverse();
+
+  const getActivityIcon = (type: string) => {
+    switch (type) {
+      case 'strength': return 'dumbbell';
+      case 'cardio': return 'run';
+      default: return 'dumbbell';
     }
   };
 
-  const getDayName = (dateStr: string) => {
-    try {
-      const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-      const dayIndex = new Date(dateStr).getDay();
-      return dayNames[dayIndex] || '';
-    } catch {
-      return '';
+  const getActivityLabel = (type: string) => {
+    switch (type) {
+      case 'strength': return '力量训练';
+      case 'cardio': return '有氧训练';
+      default: return '训练';
     }
   };
-
-  const weekProgress = trainedDays.length / 7;
 
   return (
-    <ScrollView style={styles.container}>
-      {/* 顶部欢迎区域 */}
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View>
-            <Text style={styles.greeting}>早上好, 训练者</Text>
-            <Text style={styles.date}>{getDisplayDate()}</Text>
-          </View>
-          <Avatar.Icon size={48} icon="arm-flex" style={styles.headerIcon} color="#6366F1" />
-        </View>
-      </View>
-
-      {/* 今日训练卡片 */}
-      <Card style={[styles.card, styles.featuredCard]}>
-        <Card.Content>
-          <View style={styles.cardHeader}>
-            <Avatar.Icon size={40} icon="lightning-bolt" style={styles.featuredIcon} color="#fff" />
-            <View style={styles.cardHeaderText}>
-              <Text style={styles.cardTitle}>今日计划</Text>
-              <Text style={styles.cardSubtitle}>
-                {todayRecord ? '已完成今日训练' : '准备好开始训练了吗?'}
-              </Text>
-            </View>
-          </View>
-          
-          {todayRecord ? (
-            <View style={styles.completedContainer}>
-              <View style={styles.statRow}>
-                <View style={styles.statBox}>
-                  <Text style={styles.statValue}>{todayRecord.duration || 0}</Text>
-                  <Text style={styles.statUnit}>分钟</Text>
-                </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statBox}>
-                  <Text style={styles.statValue}>{(todayRecord.totalVolume || 0).toLocaleString()}</Text>
-                  <Text style={styles.statUnit}>kg容量</Text>
-                </View>
-              </View>
-              <Button 
-                mode="outlined" 
-                onPress={() => navigation.navigate('Stats')}
-                style={styles.secondaryButton}
-                labelStyle={styles.secondaryButtonLabel}
-                icon="chart-bar"
-              >
-                查看统计
-              </Button>
-            </View>
-          ) : workoutPlans && workoutPlans.length > 0 ? (
-            <View>
-              <Text style={styles.planName}>{workoutPlans[0]?.name || '未命名计划'}</Text>
-              <Text style={styles.planDetail}>
-                {(workoutPlans[0]?.exercises?.length || 0)} 个动作 · 预计 {(workoutPlans[0]?.exercises?.length || 0) * 5} 分钟
-              </Text>
-              <Button 
-                mode="contained" 
-                onPress={() => {
-                  if (workoutPlans[0]?.id) {
-                    navigation.navigate('WorkoutSession', { planId: workoutPlans[0].id });
-                  }
-                }}
-                style={styles.primaryButton}
-                labelStyle={styles.primaryButtonLabel}
-                icon="play"
-              >
-                开始训练
-              </Button>
-            </View>
-          ) : (
-            <View>
-              <Text style={styles.planName}>暂无计划</Text>
-              <Text style={styles.planDetail}>创建你的第一个训练计划</Text>
-              <Button 
-                mode="contained" 
-                onPress={() => navigation.navigate('CreatePlan')}
-                style={styles.primaryButton}
-                labelStyle={styles.primaryButtonLabel}
-                icon="plus"
-              >
-                创建计划
-              </Button>
-            </View>
-          )}
-        </Card.Content>
-      </Card>
-
-      {/* 本周概览 */}
-      <Card style={styles.card}>
-        <Card.Content>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>本周概览</Text>
-            <Text style={styles.sectionSubtitle}>{trainedDays.length}/7 天</Text>
-          </View>
-          
-          <ProgressBar progress={weekProgress} color="#6366F1" style={styles.progressBar} />
-          
-          <View style={styles.weekOverview}>
-            {weekDays.map((date, index) => {
-              const isTrained = trainedDays.includes(date);
-              const dayName = getDayName(date);
-              const isToday = date === today;
-              return (
-                <View key={date + index} style={styles.dayIndicator}>
-                  <View style={[
-                    styles.dayCircle,
-                    isTrained && styles.dayCircleTrained,
-                    isToday && styles.dayCircleToday
-                  ]}>
-                    <Text style={[
-                      styles.dayStatus,
-                      isTrained && styles.dayStatusTrained
-                    ]}>
-                      {isTrained ? '✓' : ''}
-                    </Text>
-                  </View>
-                  <Text style={[styles.dayName, isToday && styles.dayNameToday]}>{dayName}</Text>
-                </View>
-              );
-            })}
-          </View>
-        </Card.Content>
-      </Card>
-
-      {/* 快速操作 */}
-      <View style={styles.quickActions}>
-        <Card style={[styles.quickCard, styles.quickCardPrimary]} onPress={() => navigation.navigate('CreatePlan')}>
-          <Card.Content style={styles.quickCardContent}>
-            <Avatar.Icon size={36} icon="plus-circle" style={styles.quickIcon} color="#6366F1" />
-            <Text style={styles.quickText}>新建计划</Text>
-          </Card.Content>
-        </Card>
-        
-        <Card style={[styles.quickCard, styles.quickCardSecondary]} onPress={() => navigation.navigate('ExerciseLibrary')}>
-          <Card.Content style={styles.quickCardContent}>
-            <Avatar.Icon size={36} icon="dumbbell" style={styles.quickIcon} color="#10B981" />
-            <Text style={styles.quickText}>动作库</Text>
-          </Card.Content>
-        </Card>
+        <Text style={styles.headerTitle}>FitTrack</Text>
+        <Text style={styles.headerSubtitle}>记录每一次突破</Text>
       </View>
 
       {/* 今日活动 */}
@@ -245,34 +161,17 @@ export default function HomeScreen({ navigation }: any) {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>今日活动</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              {isHealthConnectAvailable && isHealthConnectAuthorized && (
+              {isPedometerAvailable && (
                 <View style={styles.autoSyncBadge}>
                   <Avatar.Icon size={12} icon="sync" style={{ backgroundColor: 'transparent' }} color="#10B981" />
-                  <Text style={styles.autoSyncText}>Health</Text>
+                  <Text style={styles.autoSyncText}>自动</Text>
                 </View>
-              )}
-              {isHealthConnectAvailable && !isHealthConnectAuthorized && (
-                <Button
-                  mode="text"
-                  onPress={requestPermissions}
-                  labelStyle={{ fontSize: 12, color: '#F59E0B' }}
-                  icon="lock-open"
-                  compact
-                >
-                  授权
-                </Button>
               )}
               <Button
                 mode="text"
-                onPress={() => {
-                  if (isHealthConnectAvailable && isHealthConnectAuthorized) {
-                    syncTodayData();
-                  } else {
-                    setShowActivityDialog(true);
-                  }
-                }}
+                onPress={() => setShowActivityDialog(true)}
                 labelStyle={{ fontSize: 13, color: '#6366F1' }}
-                icon={isHealthConnectLoading ? 'loading' : 'pencil'}
+                icon="pencil"
                 compact
               >
                 {todayActivity ? '更新' : '记录'}
@@ -302,18 +201,102 @@ export default function HomeScreen({ navigation }: any) {
             </View>
           ) : (
             <View style={styles.emptyActivity}>
-              <Text style={styles.emptyActivityText}>记录今日步数和消耗，让预测更准确</Text>
-              <Button
-                mode="outlined"
-                onPress={() => setShowActivityDialog(true)}
-                style={styles.recordActivityButton}
-                labelStyle={{ fontSize: 13, color: '#6366F1' }}
-                icon="plus"
-              >
-                记录活动数据
-              </Button>
+              <Text style={styles.emptyActivityText}>
+                {isPedometerAvailable
+                  ? '正在同步步数数据...'
+                  : '记录今日步数和消耗，让预测更准确'}
+              </Text>
+              {!isPedometerAvailable && (
+                <Button
+                  mode="outlined"
+                  onPress={() => setShowActivityDialog(true)}
+                  style={styles.recordActivityButton}
+                  labelStyle={{ fontSize: 13, color: '#6366F1' }}
+                  icon="plus"
+                >
+                  记录活动数据
+                </Button>
+              )}
             </View>
           )}
+        </Card.Content>
+      </Card>
+
+      {/* 训练计划 */}
+      <Card style={styles.card}>
+        <Card.Content>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>训练计划</Text>
+            <Button
+              mode="text"
+              onPress={() => navigation.navigate('Plans')}
+              labelStyle={{ fontSize: 13, color: '#6366F1' }}
+              icon="plus"
+              compact
+            >
+              新建
+            </Button>
+          </View>
+          
+          {workoutPlans.length > 0 ? (
+            workoutPlans.slice(0, 3).map((plan, index) => (
+              <View key={plan.id}>
+                <View style={styles.planItem}>
+                  <View style={styles.planLeft}>
+                    <Avatar.Icon size={40} icon="clipboard-list" style={styles.planIcon} color="#6366F1" />
+                    <View style={styles.planInfo}>
+                      <Text style={styles.planName}>{plan.name}</Text>
+                      <Text style={styles.planDetail}>{plan.exercises.length} 个动作</Text>
+                    </View>
+                  </View>
+                  <Button
+                    mode="contained"
+                    onPress={() => navigation.navigate('WorkoutSession', { planId: plan.id })}
+                    style={styles.startButton}
+                    labelStyle={styles.startButtonLabel}
+                  >
+                    开始
+                  </Button>
+                </View>
+                {index < Math.min(workoutPlans.length, 3) - 1 && <Divider style={styles.divider} />}
+              </View>
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <Avatar.Icon size={48} icon="clipboard-outline" style={styles.emptyIcon} color="#CBD5E1" />
+              <Text style={styles.noPlanText}>还没有训练计划</Text>
+              <Text style={styles.noPlanSub}>点击上方"新建"创建你的第一个计划</Text>
+            </View>
+          )}
+        </Card.Content>
+      </Card>
+
+      {/* 快速开始 */}
+      <Card style={styles.card}>
+        <Card.Content>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>快速开始</Text>
+          </View>
+          <View style={styles.quickActions}>
+            <Button
+              mode="contained"
+              onPress={() => navigation.navigate('Training')}
+              style={[styles.quickButton, { backgroundColor: '#6366F1' }]}
+              labelStyle={styles.quickButtonLabel}
+              icon="dumbbell"
+            >
+              力量训练
+            </Button>
+            <Button
+              mode="contained"
+              onPress={() => navigation.navigate('CardioSession')}
+              style={[styles.quickButton, { backgroundColor: '#10B981' }]}
+              labelStyle={styles.quickButtonLabel}
+              icon="run"
+            >
+              有氧训练
+            </Button>
+          </View>
         </Card.Content>
       </Card>
 
@@ -350,13 +333,14 @@ export default function HomeScreen({ navigation }: any) {
             ))
           ) : (
             <View style={styles.emptyState}>
-              <Avatar.Icon size={48} icon="run" style={styles.emptyIcon} color="#CBD5E1" />
-              <Text style={styles.noRecord}>暂无训练记录</Text>
-              <Text style={styles.noRecordSub}>开始你的第一次训练吧!</Text>
+              <Avatar.Icon size={48} icon="calendar-blank" style={styles.emptyIcon} color="#CBD5E1" />
+              <Text style={styles.noRecord}>还没有训练记录</Text>
+              <Text style={styles.noRecordSub}>完成一次训练后，记录会显示在这里</Text>
             </View>
           )}
         </Card.Content>
       </Card>
+
       {/* 活动数据弹窗 */}
       <Portal>
         <Dialog visible={showActivityDialog} onDismiss={() => setShowActivityDialog(false)} style={styles.dialog}>
@@ -415,119 +399,29 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 16,
     backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  greeting: {
+  headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#1E293B',
   },
-  date: {
+  headerSubtitle: {
     fontSize: 14,
     color: '#64748B',
     marginTop: 4,
   },
-  headerIcon: {
-    backgroundColor: '#EEF2FF',
-  },
   card: {
     margin: 16,
-    marginTop: 8,
-    marginBottom: 8,
+    marginTop: 12,
     borderRadius: 16,
+    backgroundColor: '#fff',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.06,
     shadowRadius: 8,
-    backgroundColor: '#fff',
-  },
-  featuredCard: {
-    backgroundColor: '#6366F1',
-    marginTop: 16,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  featuredIcon: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-  cardHeaderText: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  cardSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 2,
-  },
-  completedContainer: {
-    alignItems: 'center',
-  },
-  statRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  statBox: {
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  statValue: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  statUnit: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 4,
-  },
-  statDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-  },
-  planName: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  planDetail: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-    marginBottom: 16,
-  },
-  primaryButton: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-  },
-  primaryButtonLabel: {
-    color: '#6366F1',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  secondaryButton: {
-    borderColor: 'rgba(255,255,255,0.5)',
-    borderRadius: 8,
-  },
-  secondaryButtonLabel: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -541,89 +435,67 @@ const styles = StyleSheet.create({
     color: '#1E293B',
   },
   sectionSubtitle: {
-    fontSize: 14,
-    color: '#64748B',
-  },
-  progressBar: {
-    height: 8,
-    borderRadius: 4,
-    marginBottom: 16,
-    backgroundColor: '#E2E8F0',
-  },
-  weekOverview: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  dayIndicator: {
-    alignItems: 'center',
-  },
-  dayCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  dayCircleTrained: {
-    backgroundColor: '#6366F1',
-  },
-  dayCircleToday: {
-    borderWidth: 2,
-    borderColor: '#6366F1',
-  },
-  dayStatus: {
-    fontSize: 16,
+    fontSize: 13,
     color: '#94A3B8',
   },
-  dayStatusTrained: {
-    color: '#fff',
-    fontWeight: 'bold',
+  planItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
   },
-  dayName: {
-    fontSize: 12,
+  planLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  planIcon: {
+    backgroundColor: '#EEF2FF',
+  },
+  planInfo: {
+    marginLeft: 12,
+  },
+  planName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  planDetail: {
+    fontSize: 13,
     color: '#64748B',
+    marginTop: 2,
   },
-  dayNameToday: {
-    color: '#6366F1',
-    fontWeight: 'bold',
+  startButton: {
+    borderRadius: 10,
+    backgroundColor: '#6366F1',
+    paddingHorizontal: 16,
+  },
+  startButtonLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  divider: {
+    marginVertical: 8,
+    backgroundColor: '#F1F5F9',
   },
   quickActions: {
     flexDirection: 'row',
-    marginHorizontal: 16,
-    marginVertical: 8,
     gap: 12,
   },
-  quickCard: {
+  quickButton: {
     flex: 1,
-    borderRadius: 16,
-    elevation: 2,
+    borderRadius: 12,
+    paddingVertical: 8,
   },
-  quickCardPrimary: {
-    backgroundColor: '#EEF2FF',
-  },
-  quickCardSecondary: {
-    backgroundColor: '#ECFDF5',
-  },
-  quickCardContent: {
-    alignItems: 'center',
-    paddingVertical: 16,
-  },
-  quickIcon: {
-    backgroundColor: 'transparent',
-  },
-  quickText: {
-    marginTop: 8,
+  quickButtonLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1E293B',
   },
   recordItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   recordLeft: {
     flexDirection: 'row',
@@ -637,7 +509,7 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   recordDate: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '500',
     color: '#1E293B',
   },
@@ -647,31 +519,35 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   recordRight: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    alignItems: 'flex-end',
   },
   recordDuration: {
     fontSize: 14,
     fontWeight: '600',
     color: '#6366F1',
   },
-  divider: {
-    marginVertical: 4,
-  },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 32,
+    paddingVertical: 24,
   },
   emptyIcon: {
     backgroundColor: 'transparent',
-    marginBottom: 8,
+    marginBottom: 12,
+  },
+  noPlanText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#64748B',
+  },
+  noPlanSub: {
+    fontSize: 14,
+    color: '#94A3B8',
+    marginTop: 4,
   },
   noRecord: {
     fontSize: 16,
-    color: '#64748B',
     fontWeight: '500',
+    color: '#64748B',
   },
   noRecordSub: {
     fontSize: 14,
