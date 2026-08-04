@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
 import { Text, Card, Button, Divider, Avatar, ProgressBar, TextInput, Portal, Dialog } from 'react-native-paper';
+import { Pedometer } from 'expo-sensors';
 import { useAppStore } from '../store';
 
 export default function HomeScreen({ navigation }: any) {
@@ -9,6 +10,67 @@ export default function HomeScreen({ navigation }: any) {
 
   const [showActivityDialog, setShowActivityDialog] = useState(false);
   const [activityInput, setActivityInput] = useState({ steps: '', calories: '', distance: '' });
+  const [isPedometerAvailable, setIsPedometerAvailable] = useState<boolean | null>(null);
+  const [autoSteps, setAutoSteps] = useState(0);
+
+  // 自动同步计步器数据
+  useEffect(() => {
+    let subscription: any;
+
+    const subscribe = async () => {
+      const available = await Pedometer.isAvailableAsync();
+      setIsPedometerAvailable(available);
+
+      if (available) {
+        // 获取今日步数
+        const now = new Date();
+        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const result = await Pedometer.getStepCountAsync(startOfDay, now);
+        if (result) {
+          setAutoSteps(result.steps);
+          // 自动保存到状态
+          const today = now.toISOString().split('T')[0];
+          const existing = dailyActivities.find(a => a.date === today);
+          if (!existing || existing.source === 'manual') {
+            const estimatedCalories = Math.round(result.steps * 0.04);
+            const estimatedDistance = parseFloat((result.steps * 0.0007).toFixed(1));
+            setDailyActivity({
+              date: today,
+              steps: result.steps,
+              activeCalories: estimatedCalories,
+              distanceKm: estimatedDistance,
+              source: 'health_connect',
+              updatedAt: Date.now(),
+            });
+          }
+        }
+
+        // 监听实时步数变化
+        subscription = Pedometer.watchStepCount(result => {
+          setAutoSteps(result.steps);
+          const today = new Date().toISOString().split('T')[0];
+          const estimatedCalories = Math.round(result.steps * 0.04);
+          const estimatedDistance = parseFloat((result.steps * 0.0007).toFixed(1));
+          setDailyActivity({
+            date: today,
+            steps: result.steps,
+            activeCalories: estimatedCalories,
+            distanceKm: estimatedDistance,
+            source: 'health_connect',
+            updatedAt: Date.now(),
+          });
+        });
+      }
+    };
+
+    subscribe();
+
+    return () => {
+      if (subscription) {
+        subscription.remove();
+      }
+    };
+  }, []);
 
   const handleSaveActivity = () => {
     const steps = parseInt(activityInput.steps) || 0;
@@ -235,15 +297,23 @@ export default function HomeScreen({ navigation }: any) {
         <Card.Content>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>今日活动</Text>
-            <Button
-              mode="text"
-              onPress={() => setShowActivityDialog(true)}
-              labelStyle={{ fontSize: 13, color: '#6366F1' }}
-              icon="pencil"
-              compact
-            >
-              {todayActivity ? '更新' : '记录'}
-            </Button>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              {isPedometerAvailable && (
+                <View style={styles.autoSyncBadge}>
+                  <Avatar.Icon size={12} icon="sync" style={{ backgroundColor: 'transparent' }} color="#10B981" />
+                  <Text style={styles.autoSyncText}>自动</Text>
+                </View>
+              )}
+              <Button
+                mode="text"
+                onPress={() => setShowActivityDialog(true)}
+                labelStyle={{ fontSize: 13, color: '#6366F1' }}
+                icon="pencil"
+                compact
+              >
+                {todayActivity ? '更新' : '记录'}
+              </Button>
+            </View>
           </View>
 
           {todayActivity ? (
@@ -682,6 +752,21 @@ const styles = StyleSheet.create({
   recordActivityButton: {
     borderRadius: 8,
     borderColor: '#6366F1',
+  },
+  autoSyncBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginRight: 8,
+  },
+  autoSyncText: {
+    fontSize: 11,
+    color: '#10B981',
+    marginLeft: 2,
+    fontWeight: '500',
   },
   dialog: {
     borderRadius: 20,
