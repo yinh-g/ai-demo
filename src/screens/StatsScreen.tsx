@@ -4,7 +4,7 @@ import { Text, Card, Button, Avatar, Divider } from 'react-native-paper';
 import { useAppStore } from '../store';
 
 export default function StatsScreen({ navigation }: any) {
-  const { workoutRecords, exercises } = useAppStore();
+  const { workoutRecords, exercises, dailyActivities } = useAppStore();
 
   const totalWorkouts = workoutRecords.filter(r => r.status === 'completed').length;
   const totalVolume = workoutRecords.reduce((sum, r) => sum + r.totalVolume, 0);
@@ -73,6 +73,15 @@ export default function StatsScreen({ navigation }: any) {
   const muscleDist = muscleDistribution();
   const totalSets = Object.values(muscleDist).reduce((a, b) => a + b, 0);
 
+  // 计算活动数据
+  const weekStart = new Date();
+  weekStart.setDate(weekStart.getDate() - 7);
+  const weekActivities = dailyActivities.filter(a => new Date(a.date) >= weekStart);
+  const totalWeekSteps = weekActivities.reduce((sum, a) => sum + a.steps, 0);
+  const totalWeekActivityCalories = weekActivities.reduce((sum, a) => sum + a.activeCalories, 0);
+  const totalWeekDistance = weekActivities.reduce((sum, a) => sum + a.distanceKm, 0);
+  const avgDailySteps = weekActivities.length > 0 ? Math.round(totalWeekSteps / weekActivities.length) : 0;
+
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
@@ -104,6 +113,37 @@ export default function StatsScreen({ navigation }: any) {
               </View>
               <Text style={styles.statNumber}>{Math.floor(totalDuration / 60)}</Text>
               <Text style={styles.statLabel}>总时长(小时)</Text>
+            </View>
+          </View>
+        </Card.Content>
+      </Card>
+
+      {/* 活动统计 */}
+      <Card style={styles.card}>
+        <Card.Content>
+          <View style={styles.sectionHeader}>
+            <Avatar.Icon size={24} icon="walk" style={styles.sectionIcon} color="#6366F1" />
+            <Text style={styles.sectionTitle}>本周活动</Text>
+          </View>
+          <View style={styles.weekStats}>
+            <View style={styles.weekStat}>
+              <Text style={styles.weekNumber}>{totalWeekSteps.toLocaleString()}</Text>
+              <Text style={styles.weekLabel}>总步数</Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.weekStat}>
+              <Text style={styles.weekNumber}>{avgDailySteps.toLocaleString()}</Text>
+              <Text style={styles.weekLabel}>日均步数</Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.weekStat}>
+              <Text style={styles.weekNumber}>{totalWeekActivityCalories}</Text>
+              <Text style={styles.weekLabel}>消耗(kcal)</Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.weekStat}>
+              <Text style={styles.weekNumber}>{totalWeekDistance.toFixed(1)}</Text>
+              <Text style={styles.weekLabel}>距离(km)</Text>
             </View>
           </View>
         </Card.Content>
@@ -269,13 +309,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
-    marginTop: 8,
+    marginBottom: 12,
+    paddingTop: 8,
   },
   headerIcon: {
     backgroundColor: '#EEF2FF',

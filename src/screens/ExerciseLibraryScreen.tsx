@@ -227,13 +227,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    marginTop: 8,
+    marginBottom: 12,
+    paddingTop: 4,
   },
   headerIcon: {
     backgroundColor: '#EEF2FF',
