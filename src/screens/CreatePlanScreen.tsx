@@ -44,6 +44,20 @@ export default function CreatePlanScreen({ navigation, route }: any) {
     setSelectedExercises(selectedExercises.filter(e => e.exerciseId !== exerciseId));
   };
 
+  const handleMoveUp = (index: number) => {
+    if (index <= 0) return;
+    const newExercises = [...selectedExercises];
+    [newExercises[index - 1], newExercises[index]] = [newExercises[index], newExercises[index - 1]];
+    setSelectedExercises(newExercises);
+  };
+
+  const handleMoveDown = (index: number) => {
+    if (index >= selectedExercises.length - 1) return;
+    const newExercises = [...selectedExercises];
+    [newExercises[index], newExercises[index + 1]] = [newExercises[index + 1], newExercises[index]];
+    setSelectedExercises(newExercises);
+  };
+
   const handleSavePlan = () => {
     if (planName.trim() && selectedExercises.length > 0) {
       if (existingPlan) {
@@ -121,12 +135,31 @@ export default function CreatePlanScreen({ navigation, route }: any) {
                     </View>
                     <Text style={styles.exerciseName}>{getExerciseName(exercise.exerciseId)}</Text>
                   </View>
-                  <IconButton
-                    icon="close-circle"
-                    size={20}
-                    iconColor="#EF4444"
-                    onPress={() => handleRemoveExercise(exercise.exerciseId)}
-                  />
+                  <View style={styles.exerciseActions}>
+                    <IconButton
+                      icon="arrow-up"
+                      size={18}
+                      iconColor={index === 0 ? '#CBD5E1' : '#6366F1'}
+                      onPress={() => handleMoveUp(index)}
+                      disabled={index === 0}
+                      style={styles.actionIcon}
+                    />
+                    <IconButton
+                      icon="arrow-down"
+                      size={18}
+                      iconColor={index === selectedExercises.length - 1 ? '#CBD5E1' : '#6366F1'}
+                      onPress={() => handleMoveDown(index)}
+                      disabled={index === selectedExercises.length - 1}
+                      style={styles.actionIcon}
+                    />
+                    <IconButton
+                      icon="close-circle"
+                      size={20}
+                      iconColor="#EF4444"
+                      onPress={() => handleRemoveExercise(exercise.exerciseId)}
+                      style={styles.actionIcon}
+                    />
+                  </View>
                 </View>
                 <View style={styles.exerciseParams}>
                   <View style={styles.paramItem}>
@@ -336,6 +369,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 10,
+  },
+  exerciseActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionIcon: {
+    margin: 0,
+    marginHorizontal: -4,
   },
   exerciseTitleRow: {
     flexDirection: 'row',
