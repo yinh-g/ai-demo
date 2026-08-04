@@ -74,11 +74,11 @@ function MainTabs() {
         },
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} options={{ title: '首页' }} />
-      <Tab.Screen name="Plans" component={PlanScreen} options={{ title: '计划' }} />
-      <Tab.Screen name="Training" component={TrainingScreen} options={{ title: '训练' }} />
-      <Tab.Screen name="Stats" component={StatsScreen} options={{ title: '统计' }} />
-      <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: '我的' }} />
+      <Tab.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
+      <Tab.Screen name="Plans" component={PlanScreen} options={{ headerShown: false }} />
+      <Tab.Screen name="Training" component={TrainingScreen} options={{ headerShown: false }} />
+      <Tab.Screen name="Stats" component={StatsScreen} options={{ headerShown: false }} />
+      <Tab.Screen name="Profile" component={ProfileScreen} options={{ headerShown: false }} />
     </Tab.Navigator>
   );
 }
