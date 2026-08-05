@@ -4,7 +4,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { View, Text, ActivityIndicator, StyleSheet, Image, StatusBar } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, StatusBar } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { useAppStore } from './src/store';
 import { defaultExercises } from './src/data/defaultExercises';
@@ -23,13 +24,13 @@ import PredictionScreen from './src/screens/PredictionScreen';
 import BodyDataScreen from './src/screens/BodyDataScreen';
 import WorkoutRecordDetailScreen from './src/screens/WorkoutRecordDetailScreen';
 
-// 导入图标
-const icons = {
-  Home: require('./assets/icons/home.png'),
-  Plans: require('./assets/icons/calendar.png'),
-  Training: require('./assets/icons/dumbell.png'),
-  Stats: require('./assets/icons/chart.png'),
-  Profile: require('./assets/icons/user.png'),
+// 底部导航图标配置
+const tabIcons: Record<string, { active: string; inactive: string }> = {
+  Home: { active: 'home', inactive: 'home-outline' },
+  Plans: { active: 'calendar-check', inactive: 'calendar-check-outline' },
+  Training: { active: 'dumbbell', inactive: 'dumbbell' },
+  Stats: { active: 'chart-bar', inactive: 'chart-bar' },
+  Profile: { active: 'account', inactive: 'account-outline' },
 };
 
 const Tab = createBottomTabNavigator();
@@ -39,17 +40,15 @@ function MainTabs() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, size }) => {
-          const iconSource = icons[route.name as keyof typeof icons];
+        tabBarIcon: ({ focused, size, color }) => {
+          const icons = tabIcons[route.name];
+          if (!icons) return null;
+          const iconName = focused ? icons.active : icons.inactive;
           return (
-            <Image
-              source={iconSource}
-              style={{
-                width: size - 2,
-                height: size - 2,
-                tintColor: focused ? '#6366F1' : '#94A3B8',
-              }}
-              resizeMode="contain"
+            <MaterialCommunityIcons
+              name={iconName as any}
+              size={size}
+              color={color}
             />
           );
         },
