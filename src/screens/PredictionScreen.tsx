@@ -82,7 +82,7 @@ export default function PredictionScreen({ navigation }: any) {
       const recompResult = predictBodyRecomposition(muscleInput, fatLossInput, userProfile, muscleData);
       setRecomposition(recompResult);
     }
-  }, [userProfile, workoutRecords]);
+  }, [userProfile, workoutRecords, dailyActivities]);
 
   if (!userProfile) {
     return (
