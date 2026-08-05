@@ -16,91 +16,64 @@ export default function HomeScreen({ navigation }: any) {
   // 自动同步计步器数据
   useEffect(() => {
     let subscription: any;
+    let isMounted = true;
 
     const subscribe = async () => {
-      const available = await Pedometer.isAvailableAsync();
-      setIsPedometerAvailable(available);
+      try {
+        const available = await Pedometer.isAvailableAsync();
+        if (!isMounted) return;
+        setIsPedometerAvailable(available);
 
-      if (available) {
-        const now = new Date();
-        const today = now.toISOString().split('T')[0];
+        if (available) {
+          const now = new Date();
+          const today = now.toISOString().split('T')[0];
 
-        // 获取上次打开时间
-        const lastOpenStr = await AsyncStorage.getItem('lastAppOpenTime');
-        const lastOpen = lastOpenStr ? new Date(lastOpenStr) : null;
+          // 获取今日步数（从0点开始）
+          const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const result = await Pedometer.getStepCountAsync(startOfDay, now);
 
-        // 获取今日步数（从0点开始）
-        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const result = await Pedometer.getStepCountAsync(startOfDay, now);
-
-        if (result) {
-          // 如果有上次打开记录，且是今天，尝试补齐关闭期间的步数
-          if (lastOpen && lastOpen.toISOString().split('T')[0] === today) {
-            // 上次也是今天，读取上次打开到现在的步数增量
-            const incrementalResult = await Pedometer.getStepCountAsync(lastOpen, now);
-            if (incrementalResult && incrementalResult.steps > 0) {
-              const existing = dailyActivities.find(a => a.date === today);
-              const currentSteps = existing ? existing.steps : 0;
-              const newSteps = Math.max(result.steps, currentSteps + incrementalResult.steps);
-              const estimatedCalories = Math.round(newSteps * 0.04);
-              const estimatedDistance = parseFloat((newSteps * 0.0007).toFixed(1));
-              setDailyActivity({
-                date: today,
-                steps: newSteps,
-                activeCalories: estimatedCalories,
-                distanceKm: estimatedDistance,
-                source: 'health_connect',
-                updatedAt: Date.now(),
-              });
-            } else {
-              // 直接保存今日累计
-              saveTodaySteps(result.steps, today);
-            }
-          } else {
-            // 上次不是今天或没有记录，直接保存今日累计
-            saveTodaySteps(result.steps, today);
+          if (result && isMounted) {
+            const estimatedCalories = Math.round(result.steps * 0.04);
+            const estimatedDistance = parseFloat((result.steps * 0.0007).toFixed(1));
+            setDailyActivity({
+              date: today,
+              steps: result.steps,
+              activeCalories: estimatedCalories,
+              distanceKm: estimatedDistance,
+              source: 'health_connect',
+              updatedAt: Date.now(),
+            });
           }
-        }
 
-        // 保存本次打开时间
-        await AsyncStorage.setItem('lastAppOpenTime', now.toISOString());
+          // 保存本次打开时间
+          await AsyncStorage.setItem('lastAppOpenTime', now.toISOString());
 
-        // 监听实时步数变化
-        subscription = Pedometer.watchStepCount(result => {
-          const today = new Date().toISOString().split('T')[0];
-          const estimatedCalories = Math.round(result.steps * 0.04);
-          const estimatedDistance = parseFloat((result.steps * 0.0007).toFixed(1));
-          setDailyActivity({
-            date: today,
-            steps: result.steps,
-            activeCalories: estimatedCalories,
-            distanceKm: estimatedDistance,
-            source: 'health_connect',
-            updatedAt: Date.now(),
+          // 监听实时步数变化
+          subscription = Pedometer.watchStepCount(result => {
+            if (!isMounted) return;
+            const today = new Date().toISOString().split('T')[0];
+            const estimatedCalories = Math.round(result.steps * 0.04);
+            const estimatedDistance = parseFloat((result.steps * 0.0007).toFixed(1));
+            setDailyActivity({
+              date: today,
+              steps: result.steps,
+              activeCalories: estimatedCalories,
+              distanceKm: estimatedDistance,
+              source: 'health_connect',
+              updatedAt: Date.now(),
+            });
           });
-        });
-      }
-    };
-
-    const saveTodaySteps = (steps: number, today: string) => {
-      const existing = dailyActivities.find(a => a.date === today);
-      if (!existing || existing.source === 'manual') {
-        const estimatedCalories = Math.round(steps * 0.04);
-        const estimatedDistance = parseFloat((steps * 0.0007).toFixed(1));
-        setDailyActivity({
-          date: today,
-          steps,
-          activeCalories: estimatedCalories,
-          distanceKm: estimatedDistance,
-          source: 'health_connect',
-          updatedAt: Date.now(),
-        });
+        }
+      } catch (error) {
+        console.error('Pedometer error:', error);
+        if (isMounted) setIsPedometerAvailable(false);
       }
     };
 
     subscribe();
 
     return () => {
+      isMounted = false;
       if (subscription) {
         subscription.remove();
       }
