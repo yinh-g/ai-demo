@@ -32,9 +32,9 @@ export default function PredictionScreen({ navigation }: any) {
       const weeklyStrengthMinutes = strengthRecords.reduce((sum, r) => sum + r.duration, 0);
 
       // 计算最近7天的日常活动数据
-      const weekStart = new Date();
-      weekStart.setDate(weekStart.getDate() - 7);
-      const weekActivities = dailyActivities.filter(a => new Date(a.date) >= weekStart);
+      const activityWeekStart = new Date();
+      activityWeekStart.setDate(activityWeekStart.getDate() - 7);
+      const weekActivities = dailyActivities.filter(a => new Date(a.date) >= activityWeekStart);
       const dailyActiveCalories = weekActivities.length > 0
         ? weekActivities.reduce((sum, a) => sum + a.activeCalories, 0) / weekActivities.length
         : 0;
