@@ -15,6 +15,7 @@ export default function WorkoutSessionScreen({ navigation, route }: any) {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [weight, setWeight] = useState('');
   const [reps, setReps] = useState('');
+  const startTimeRef = useRef<number>(Date.now());
   const restTimerRef = useRef<NodeJS.Timeout | null>(null);
   const elapsedTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -32,8 +33,11 @@ export default function WorkoutSessionScreen({ navigation, route }: any) {
       setReps(currentPlanExercise.reps.toString());
     }
 
+    // 使用 Date.now() 计算，支持后台运行
     elapsedTimerRef.current = setInterval(() => {
-      setElapsedTime(prev => prev + 1);
+      const now = Date.now();
+      const elapsed = Math.floor((now - startTimeRef.current) / 1000);
+      setElapsedTime(elapsed);
     }, 1000);
 
     return () => {
