@@ -10,7 +10,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAppStore } from './src/store';
 import { defaultExercises } from './src/data/defaultExercises';
 import ErrorBoundary from './src/components/ErrorBoundary';
+import { getPat } from './src/services/auth';
+import { startSync } from './src/services/sync';
+import { loadMeta } from './src/services/meta';
 
+import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import PlanScreen from './src/screens/PlanScreen';
 import TrainingScreen from './src/screens/TrainingScreen';
@@ -83,13 +87,20 @@ function MainTabs() {
 }
 
 function AppContent() {
-  const { exercises, addExercise } = useAppStore();
+  const { exercises, addExercise, authUser, setAuthUser } = useAppStore();
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    // 初始化默认动作库
-    const initData = async () => {
+    (async () => {
       try {
+        const pat = await getPat();
+        if (pat) {
+          // 已登录：先恢复 authUser（从 meta），再启动同步
+          const meta = await loadMeta();
+          if (meta.githubUser) setAuthUser(meta.githubUser);
+          await startSync();
+        }
+        // 初始化默认动作库（pull 后若仍为空才填充）
         if (exercises.length === 0) {
           defaultExercises.forEach((exercise) => {
             addExercise(exercise);
@@ -100,9 +111,7 @@ function AppContent() {
       } finally {
         setIsReady(true);
       }
-    };
-    
-    initData();
+    })();
   }, []);
 
   if (!isReady) {
@@ -111,6 +120,19 @@ function AppContent() {
         <ActivityIndicator size="large" color="#1A5F7A" />
         <Text style={styles.loadingText}>加载中...</Text>
       </View>
+    );
+  }
+
+  if (!authUser) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#F8FAFC' }}>
+          <PaperProvider>
+            <LoginScreen />
+          </PaperProvider>
+        </SafeAreaView>
+      </SafeAreaProvider>
     );
   }
 

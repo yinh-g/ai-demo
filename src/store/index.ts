@@ -45,6 +45,14 @@ interface AppState {
   dailyActivities: DailyActivity[];
   setDailyActivity: (activity: DailyActivity) => void;
   getTodayActivity: () => DailyActivity | undefined;
+
+  // 云同步状态
+  syncStatus: 'idle' | 'syncing' | 'offline' | 'error';
+  setSyncStatus: (status: AppState['syncStatus']) => void;
+
+  // 登录态（运行时，不持久化）。由 sync.login/logout 维护
+  authUser: string | null;
+  setAuthUser: (user: string | null) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -214,11 +222,27 @@ export const useAppStore = create<AppState>()(
       getTodayActivity: () => {
         const today = new Date().toISOString().split('T')[0];
         return get().dailyActivities.find(a => a.date === today);
-      }
+      },
+
+      // 云同步状态（不持久化）
+      syncStatus: 'idle',
+      setSyncStatus: (status) => set({ syncStatus: status }),
+
+      // 登录态（不持久化）
+      authUser: null,
+      setAuthUser: (user) => set({ authUser: user })
     }),
     {
       name: 'fitness-tracker-storage',
-      storage: createJSONStorage(() => AsyncStorage)
+      storage: createJSONStorage(() => AsyncStorage),
+      // 仅持久化业务数据，syncStatus 等运行时状态不持久化
+      partialize: (state) => ({
+        userProfile: state.userProfile,
+        exercises: state.exercises,
+        workoutPlans: state.workoutPlans,
+        workoutRecords: state.workoutRecords,
+        dailyActivities: state.dailyActivities,
+      })
     }
   )
 );

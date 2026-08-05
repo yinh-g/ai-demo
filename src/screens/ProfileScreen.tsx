@@ -1,16 +1,87 @@
-import React from 'react';
-import { View, StyleSheet, ScrollView, Image } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, ScrollView, Image, Alert } from 'react-native';
 import { Text, Card, Button, List, Divider, Avatar } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAppStore } from '../store';
+import { loadMeta, LocalSyncMeta } from '../services/meta';
+import { syncNow, logout } from '../services/sync';
 
 export default function ProfileScreen({ navigation }: any) {
-  const { userProfile, workoutRecords, exercises, workoutPlans } = useAppStore();
+  const { userProfile, workoutRecords, exercises, workoutPlans, syncStatus } = useAppStore();
+  const [meta, setMeta] = useState<LocalSyncMeta | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   const completedWorkouts = workoutRecords.filter(r => r.status === 'completed');
   const totalVolume = completedWorkouts.reduce((sum, r) => sum + r.totalVolume, 0);
 
+  const refreshMeta = async () => {
+    setMeta(await loadMeta());
+  };
+
+  useEffect(() => {
+    refreshMeta();
+  }, []);
+
   const getGenderLabel = (gender?: string) => {
     return gender === 'male' ? '男' : gender === 'female' ? '女' : '';
+  };
+
+  const formatSyncTime = (ts: number) => {
+    if (!ts) return '从未';
+    const diff = Date.now() - ts;
+    if (diff < 60_000) return '刚刚';
+    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} 分钟前`;
+    const d = new Date(ts);
+    return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+  };
+
+  const getSyncStatusLabel = () => {
+    if (syncing) return '同步中...';
+    switch (syncStatus) {
+      case 'syncing': return '同步中';
+      case 'error': return '同步失败';
+      case 'offline': return '离线';
+      default: return '已连接';
+    }
+  };
+
+  const getSyncStatusColor = () => {
+    if (syncing) return '#F59E0B';
+    switch (syncStatus) {
+      case 'error': return '#EF4444';
+      case 'offline': return '#94A3B8';
+      default: return '#10B981';
+    }
+  };
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      await syncNow();
+      await refreshMeta();
+    } catch (e: any) {
+      Alert.alert('同步失败', e?.message || '请检查网络后重试');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      '退出登录',
+      '退出后本地数据保留，但将不再同步到云端。确定退出吗？',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '退出',
+          style: 'destructive',
+          onPress: async () => {
+            await logout();
+            // logout 会清空 store.authUser，App.tsx 订阅后自动回到登录页
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -127,6 +198,57 @@ export default function ProfileScreen({ navigation }: any) {
             descriptionStyle={styles.listDesc}
           />
         </List.Section>
+      </Card>
+
+      {/* 云同步卡片 */}
+      <Card style={styles.menuCard}>
+        <Card.Content>
+          <View style={styles.syncHeader}>
+            <View style={styles.syncTitleRow}>
+              <MaterialCommunityIcons name="cloud-sync-outline" size={20} color="#6366F1" />
+              <Text style={styles.syncTitle}>云同步</Text>
+            </View>
+            <View style={[styles.syncBadge, { backgroundColor: getSyncStatusColor() + '20' }]}>
+              <View style={[styles.syncDot, { backgroundColor: getSyncStatusColor() }]} />
+              <Text style={[styles.syncBadgeText, { color: getSyncStatusColor() }]}>
+                {getSyncStatusLabel()}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.syncInfoRow}>
+            <Text style={styles.syncLabel}>GitHub 账号</Text>
+            <Text style={styles.syncValue}>{meta?.githubUser || '-'}</Text>
+          </View>
+          <View style={styles.syncInfoRow}>
+            <Text style={styles.syncLabel}>最近同步</Text>
+            <Text style={styles.syncValue}>{formatSyncTime(meta?.lastSyncedAt ?? 0)}</Text>
+          </View>
+
+          <View style={styles.syncButtonRow}>
+            <Button
+              mode="outlined"
+              onPress={handleSync}
+              loading={syncing}
+              disabled={syncing}
+              style={styles.syncButton}
+              icon="refresh"
+              compact
+            >
+              立即同步
+            </Button>
+            <Button
+              mode="text"
+              onPress={handleLogout}
+              style={styles.logoutButton}
+              icon="logout"
+              compact
+              textColor="#EF4444"
+            >
+              退出登录
+            </Button>
+          </View>
+        </Card.Content>
       </Card>
 
       {/* 版本信息 */}
@@ -263,5 +385,65 @@ const styles = StyleSheet.create({
     color: '#CBD5E1',
     marginTop: 24,
     marginBottom: 32,
+  },
+  syncHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  syncTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  syncTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  syncBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 4,
+  },
+  syncDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  syncBadgeText: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  syncInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+  },
+  syncLabel: {
+    fontSize: 13,
+    color: '#64748B',
+  },
+  syncValue: {
+    fontSize: 13,
+    color: '#1E293B',
+    fontWeight: '500',
+  },
+  syncButtonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  syncButton: {
+    borderRadius: 8,
+    borderColor: '#6366F1',
+  },
+  logoutButton: {
+    marginLeft: -8,
   },
 });
