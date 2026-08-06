@@ -13,7 +13,27 @@ export interface FirebaseConfig {
 }
 
 function getFirebaseConfig(): FirebaseConfig {
-  const config = Constants.expoConfig?.extra?.firebase as FirebaseConfig | undefined;
+  // 尝试多种方式读取配置（Expo Go / Web / Development Build 兼容性）
+  let config: FirebaseConfig | undefined;
+  
+  try {
+    config = Constants.expoConfig?.extra?.firebase as FirebaseConfig | undefined;
+  } catch {
+    // Constants.expoConfig 可能在某些环境下不可用
+  }
+  
+  // 备用：直接内嵌配置（生产环境应使用环境变量）
+  if (!config) {
+    config = {
+      apiKey: "AIzaSyAmoDGDdnjmtK3MRNu4iECbBzsQ595wJ0c",
+      authDomain: "fittrack-prod-39e72.firebaseapp.com",
+      projectId: "fittrack-prod-39e72",
+      storageBucket: "fittrack-prod-39e72.firebasestorage.app",
+      messagingSenderId: "659723342601",
+      appId: "1:659723342601:web:f86d1deeff79fd8813f9d8"
+    };
+  }
+  
   if (!config || !config.apiKey || config.apiKey === 'YOUR_API_KEY') {
     throw new Error('Firebase 未配置');
   }
