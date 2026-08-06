@@ -1,0 +1,18 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 业务数据同步文档：用户只能读写自己 UID 下的同步文档
+    match /users/{uid}/state/sync {
+      allow read, write: if
+        request.auth != null &&
+        request.auth.uid == uid &&
+        request.resource.data.keys().hasOnly(['schemaVersion', 'updatedAt', 'updatedAtByDevice', 'data']);
+    }
+
+    // 防止用户枚举其他用户或写入其他路径
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -29,6 +29,23 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-
+    "plugins": [
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": "允许 $(PRODUCT_NAME) 使用 Face ID 登录"
+        }
+      ]
+    ],
+    "extra": {
+      "firebase": {
+        "apiKey": "YOUR_API_KEY",
+        "authDomain": "YOUR_PROJECT.firebaseapp.com",
+        "projectId": "YOUR_PROJECT_ID",
+        "storageBucket": "YOUR_PROJECT.appspot.com",
+        "messagingSenderId": "YOUR_SENDER_ID",
+        "appId": "YOUR_APP_ID"
+      }
+    }
   }
 }

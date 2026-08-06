@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAppStore } from '../store';
 import { loadMeta, LocalSyncMeta } from '../services/meta';
 import { syncNow, logout } from '../services/sync';
+import { getCurrentUser } from '../services/auth';
 
 export default function ProfileScreen({ navigation }: any) {
   const { userProfile, workoutRecords, exercises, workoutPlans, syncStatus } = useAppStore();
@@ -217,8 +218,10 @@ export default function ProfileScreen({ navigation }: any) {
           </View>
 
           <View style={styles.syncInfoRow}>
-            <Text style={styles.syncLabel}>GitHub 账号</Text>
-            <Text style={styles.syncValue}>{meta?.githubUser || '-'}</Text>
+            <Text style={styles.syncLabel}>账号</Text>
+            <Text style={styles.syncValue} numberOfLines={1}>
+              {getCurrentUser()?.email || '-'}
+            </Text>
           </View>
           <View style={styles.syncInfoRow}>
             <Text style={styles.syncLabel}>最近同步</Text>

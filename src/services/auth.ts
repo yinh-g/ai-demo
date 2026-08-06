@@ -1,28 +1,72 @@
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  User,
+  Unsubscribe,
+} from 'firebase/auth';
+import { getFirebase, initFirebase } from './firebase';
 import * as SecureStore from 'expo-secure-store';
-import { getGithubUser } from './gist';
 
-const PAT_KEY = 'fitness-tracker-pat';
+const EMAIL_KEY = 'fittrack-email';
 
-// 保存 PAT 并验证，返回 GitHub 用户名
-export async function savePat(pat: string): Promise<string> {
-  const trimmed = pat.trim();
-  if (!trimmed) throw new Error('PAT 不能为空');
-  // 先验证 PAT 有效性
-  const user = await getGithubUser(trimmed);
-  // 验证通过再保存
-  await SecureStore.setItemAsync(PAT_KEY, trimmed);
-  return user.login;
+export type { User };
+
+function ensureInit() {
+  return initFirebase();
 }
 
-export async function getPat(): Promise<string | null> {
-  return SecureStore.getItemAsync(PAT_KEY);
+export async function login(email: string, password: string): Promise<User> {
+  const trimmedEmail = email.trim().toLowerCase();
+  if (!trimmedEmail) throw new Error('请输入邮箱');
+  if (!password) throw new Error('请输入密码');
+  const { auth } = ensureInit();
+  const cred = await signInWithEmailAndPassword(auth, trimmedEmail, password);
+  if (cred.user.email) {
+    await SecureStore.setItemAsync(EMAIL_KEY, cred.user.email);
+  }
+  return cred.user;
 }
 
-export async function clearPat(): Promise<void> {
-  await SecureStore.deleteItemAsync(PAT_KEY);
+export async function register(email: string, password: string): Promise<User> {
+  const trimmedEmail = email.trim().toLowerCase();
+  if (!trimmedEmail) throw new Error('请输入邮箱');
+  if (!password || password.length < 6) throw new Error('密码至少 6 位');
+  const { auth } = ensureInit();
+  const cred = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
+  if (cred.user.email) {
+    await SecureStore.setItemAsync(EMAIL_KEY, cred.user.email);
+  }
+  return cred.user;
 }
 
-export async function isLoggedIn(): Promise<boolean> {
-  const pat = await getPat();
-  return !!pat;
+export async function logoutFirebase(): Promise<void> {
+  const { auth } = ensureInit();
+  await signOut(auth);
+  await SecureStore.deleteItemAsync(EMAIL_KEY);
+}
+
+export function getCurrentUser(): User | null {
+  if (!authInitialized()) return null;
+  const { auth } = getFirebase();
+  return auth.currentUser;
+}
+
+export function authInitialized(): boolean {
+  try {
+    getFirebase();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function onUserChanged(cb: (user: User | null) => void): Unsubscribe {
+  const { auth } = ensureInit();
+  return onAuthStateChanged(auth, cb);
+}
+
+export async function getSavedEmail(): Promise<string | null> {
+  return SecureStore.getItemAsync(EMAIL_KEY);
 }

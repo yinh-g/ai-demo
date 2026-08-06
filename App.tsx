@@ -10,9 +10,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAppStore } from './src/store';
 import { defaultExercises } from './src/data/defaultExercises';
 import ErrorBoundary from './src/components/ErrorBoundary';
-import { getPat } from './src/services/auth';
 import { startSync } from './src/services/sync';
-import { loadMeta } from './src/services/meta';
+import { initFirebase, isFirebaseConfigured } from './src/services/firebase';
+import { onUserChanged } from './src/services/auth';
 
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
@@ -28,7 +28,6 @@ import PredictionScreen from './src/screens/PredictionScreen';
 import BodyDataScreen from './src/screens/BodyDataScreen';
 import WorkoutRecordDetailScreen from './src/screens/WorkoutRecordDetailScreen';
 
-// 底部导航图标配置
 const tabIcons: Record<string, { active: string; inactive: string }> = {
   Home: { active: 'home', inactive: 'home-outline' },
   Plans: { active: 'calendar-check', inactive: 'calendar-check-outline' },
@@ -89,18 +88,39 @@ function MainTabs() {
 function AppContent() {
   const { exercises, addExercise, authUser, setAuthUser } = useAppStore();
   const [isReady, setIsReady] = useState(false);
+  const [firebaseInit, setFirebaseInit] = useState<{ ok: boolean; error?: string }>({ ok: false });
 
   useEffect(() => {
+    let authUnsub: (() => void) | null = null;
     (async () => {
       try {
-        const pat = await getPat();
-        if (pat) {
-          // 已登录：先恢复 authUser（从 meta），再启动同步
-          const meta = await loadMeta();
-          if (meta.githubUser) setAuthUser(meta.githubUser);
-          await startSync();
+        // 1. 初始化 Firebase（未配置时也继续往下走，LoginScreen 会显示配置提示）
+        if (isFirebaseConfigured()) {
+          initFirebase();
+          setFirebaseInit({ ok: true });
+        } else {
+          setFirebaseInit({ ok: false, error: '未配置' });
         }
-        // 初始化默认动作库（pull 后若仍为空才填充）
+
+        // 2. 监听 Firebase Auth 状态变化（跨会话恢复登录态）
+        if (firebaseInit.ok || isFirebaseConfigured()) {
+          authUnsub = onUserChanged(async (user) => {
+            if (user) {
+              // 已登录：恢复 authUser → 启动同步
+              setAuthUser(user.email || user.uid);
+              try {
+                await startSync();
+              } catch (e) {
+                console.warn('startSync on auth restore failed:', e);
+              }
+            } else {
+              // 未登录 / 登出：清空 store 态（但保留业务数据本地）
+              setAuthUser(null);
+            }
+          });
+        }
+
+        // 3. 初始化默认动作库
         if (exercises.length === 0) {
           defaultExercises.forEach((exercise) => {
             addExercise(exercise);
@@ -112,6 +132,8 @@ function AppContent() {
         setIsReady(true);
       }
     })();
+    return () => { if (authUnsub) authUnsub(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!isReady) {
@@ -123,6 +145,7 @@ function AppContent() {
     );
   }
 
+  // Firebase 未配置：仍显示 LoginScreen，会给出友好提示指引配置
   if (!authUser) {
     return (
       <SafeAreaProvider>
