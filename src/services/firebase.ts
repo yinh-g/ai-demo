@@ -13,19 +13,11 @@ export interface FirebaseConfig {
 }
 
 function getFirebaseConfig(): FirebaseConfig {
-  try {
-    const extra = (Constants.expoConfig?.extra?.firebase as FirebaseConfig | undefined) ?? {} as FirebaseConfig;
-    if (!extra.apiKey || extra.apiKey === 'YOUR_API_KEY') {
-      throw new Error('Firebase 未配置');
-    }
-    return extra;
-  } catch (e) {
-    console.error('Firebase config error:', e);
-    throw new Error(
-      'Firebase 未配置。请在 app.json 的 expo.extra.firebase 中填入你 Firebase 项目的配置。\n' +
-      '获取路径：Firebase 控制台 → 项目设置 → 你的应用 → 「SDK 设置和配置」→ npm'
-    );
+  const config = Constants.expoConfig?.extra?.firebase as FirebaseConfig | undefined;
+  if (!config || !config.apiKey || config.apiKey === 'YOUR_API_KEY') {
+    throw new Error('Firebase 未配置');
   }
+  return config;
 }
 
 let app: FirebaseApp | null = null;
@@ -34,17 +26,12 @@ let db: Firestore | null = null;
 
 export function initFirebase(): { app: FirebaseApp; auth: Auth; db: Firestore } {
   if (app) return { app, auth: auth!, db: db! };
-  try {
-    const config = getFirebaseConfig();
-    app = getApps().length ? getApp() : initializeApp(config);
-    if (!app) throw new Error('Firebase app 初始化失败');
-    auth = getAuth(app);
-    db = getFirestore(app);
-    return { app, auth, db };
-  } catch (e) {
-    console.error('initFirebase error:', e);
-    throw e;
-  }
+  const config = getFirebaseConfig();
+  app = getApps().length ? getApp() : initializeApp(config);
+  if (!app) throw new Error('Firebase app 初始化失败');
+  auth = getAuth(app);
+  db = getFirestore(app);
+  return { app, auth, db };
 }
 
 export function getFirebase(): { app: FirebaseApp; auth: Auth; db: Firestore } {

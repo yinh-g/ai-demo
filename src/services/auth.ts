@@ -14,7 +14,12 @@ const EMAIL_KEY = 'fittrack-email';
 export type { User };
 
 function ensureInit() {
-  return initFirebase();
+  try {
+    return initFirebase();
+  } catch (e) {
+    console.error('ensureInit failed:', e);
+    throw new Error('Firebase 初始化失败，请检查配置');
+  }
 }
 
 export async function login(email: string, password: string): Promise<User> {
