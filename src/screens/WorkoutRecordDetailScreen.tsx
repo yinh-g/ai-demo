@@ -16,6 +16,9 @@ export default function WorkoutRecordDetailScreen({ navigation, route }: any) {
   const [editWeight, setEditWeight] = useState('');
   const [editReps, setEditReps] = useState('');
 
+  const [durationDialogVisible, setDurationDialogVisible] = useState(false);
+  const [editDuration, setEditDuration] = useState('');
+
   if (!record) {
     return (
       <View style={styles.container}>
@@ -104,6 +107,18 @@ export default function WorkoutRecordDetailScreen({ navigation, route }: any) {
     setEditingSet(null);
   };
 
+  const openDurationEdit = () => {
+    setEditDuration(record.duration.toString());
+    setDurationDialogVisible(true);
+  };
+
+  const saveDuration = () => {
+    const durationNum = parseInt(editDuration);
+    if (!durationNum || durationNum <= 0) return;
+    updateWorkoutRecord(record.id, { duration: durationNum });
+    setDurationDialogVisible(false);
+  };
+
   const formatDate = (dateStr: string) => {
     try {
       return new Date(dateStr).toLocaleDateString('zh-CN', {
@@ -137,9 +152,12 @@ export default function WorkoutRecordDetailScreen({ navigation, route }: any) {
       <Card style={styles.overviewCard}>
         <Card.Content>
           <View style={styles.statsRow}>
-            <View style={styles.statItem}>
+            <View style={styles.statItem} onTouchEnd={openDurationEdit}>
               <Text style={styles.statValue}>{record.duration}</Text>
-              <Text style={styles.statLabel}>分钟</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.statLabel}>分钟</Text>
+                <Avatar.Icon size={12} icon="pencil" style={{ backgroundColor: 'transparent' }} color="rgba(255,255,255,0.6)" />
+              </View>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
@@ -294,6 +312,26 @@ export default function WorkoutRecordDetailScreen({ navigation, route }: any) {
           <Dialog.Actions>
             <Button onPress={() => setEditDialogVisible(false)} textColor="#64748B">取消</Button>
             <Button onPress={saveEdit} textColor="#6366F1">保存</Button>
+          </Dialog.Actions>
+        </Dialog>
+
+        <Dialog visible={durationDialogVisible} onDismiss={() => setDurationDialogVisible(false)} style={styles.editDialog}>
+          <Dialog.Title style={styles.editDialogTitle}>编辑训练时长</Dialog.Title>
+          <Dialog.Content>
+            <TextInput
+              label="时长(分钟)"
+              value={editDuration}
+              onChangeText={setEditDuration}
+              keyboardType="numeric"
+              style={styles.durationInput}
+              mode="outlined"
+              outlineColor="#E2E8F0"
+              activeOutlineColor="#6366F1"
+            />
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setDurationDialogVisible(false)} textColor="#64748B">取消</Button>
+            <Button onPress={saveDuration} textColor="#6366F1">保存</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
@@ -523,6 +561,9 @@ const styles = StyleSheet.create({
   },
   editInput: {
     flex: 1,
+    backgroundColor: '#fff',
+  },
+  durationInput: {
     backgroundColor: '#fff',
   },
 });
