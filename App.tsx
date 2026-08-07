@@ -11,7 +11,7 @@ import { useAppStore } from './src/store';
 import { defaultExercises } from './src/data/defaultExercises';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { startSync } from './src/services/sync';
-import { initFirebase, isFirebaseConfigured } from './src/services/firebase';
+import { initSupabase, isSupabaseConfigured } from './src/services/supabase';
 import { onUserChanged } from './src/services/auth';
 
 import LoginScreen from './src/screens/LoginScreen';
@@ -94,20 +94,20 @@ function AppContent() {
     let authUnsub: (() => void) | null = null;
     (async () => {
       try {
-        // 1. 初始化 Firebase（未配置时也继续往下走，LoginScreen 会显示配置提示）
-        if (isFirebaseConfigured()) {
-          initFirebase();
+        // 1. 初始化 Supabase（未配置时也继续往下走，LoginScreen 会显示配置提示）
+        if (isSupabaseConfigured()) {
+          initSupabase();
           setFirebaseInit({ ok: true });
         } else {
           setFirebaseInit({ ok: false, error: '未配置' });
         }
 
-        // 2. 监听 Firebase Auth 状态变化（跨会话恢复登录态）
-        if (firebaseInit.ok || isFirebaseConfigured()) {
+        // 2. 监听 Supabase Auth 状态变化（跨会话恢复登录态）
+        if (firebaseInit.ok || isSupabaseConfigured()) {
           authUnsub = onUserChanged(async (user) => {
             if (user) {
               // 已登录：恢复 authUser → 启动同步
-              setAuthUser(user.email || user.uid);
+              setAuthUser(user.email || user.id);
               try {
                 await startSync();
               } catch (e) {

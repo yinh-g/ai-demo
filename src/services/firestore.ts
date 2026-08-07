@@ -1,9 +1,7 @@
-import { getFirebase, initFirebase } from './firebase';
+import { getSupabase, initSupabase } from './supabase';
 import { getCurrentUser } from './auth';
 
-const COLLECTION = 'users';
-const SUBCOLLECTION = 'state';
-const DOC = 'sync';
+const TABLE = 'user_data';
 
 export interface CloudState {
   schemaVersion: number;
@@ -13,24 +11,42 @@ export interface CloudState {
 }
 
 function ensureInit() {
-  return initFirebase();
-}
-
-function docRef() {
-  const user = getCurrentUser();
-  if (!user) throw new Error('未登录');
-  const { db } = getFirebase();
-  return db.collection(COLLECTION).doc(user.uid).collection(SUBCOLLECTION).doc(DOC);
+  return initSupabase();
 }
 
 export async function readCloudState(): Promise<CloudState | null> {
   ensureInit();
-  const snap = await docRef().get();
-  if (!snap.exists) return null;
-  return snap.data() as CloudState;
+  const user = getCurrentUser();
+  if (!user) throw new Error('未登录');
+
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('data')
+    .eq('user_id', user.id)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null; // 未找到
+    throw new Error(error.message);
+  }
+
+  return data?.data as CloudState || null;
 }
 
 export async function writeCloudState(payload: CloudState): Promise<void> {
   ensureInit();
-  await docRef().set(payload);
+  const user = getCurrentUser();
+  if (!user) throw new Error('未登录');
+
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from(TABLE)
+    .upsert({
+      user_id: user.id,
+      data: payload,
+      updated_at: new Date().toISOString(),
+    });
+
+  if (error) throw new Error(error.message);
 }

@@ -11,7 +11,7 @@ import { Text, TextInput, Button, Card, SegmentedButtons } from 'react-native-pa
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { login, register } from '../services/sync';
 import { getSavedEmail } from '../services/auth';
-import { isFirebaseConfigured } from '../services/firebase';
+import { isSupabaseConfigured } from '../services/supabase';
 import { useAppStore } from '../store';
 
 type Mode = 'login' | 'register';
@@ -45,7 +45,7 @@ export default function LoginScreen({ onLoginSuccess }: Props) {
   const setIsGuest = useAppStore((state) => state.setIsGuest);
 
   useEffect(() => {
-    setConfigured(isFirebaseConfigured());
+    setConfigured(isSupabaseConfigured());
     // 恢复上次使用的邮箱
     getSavedEmail().then((e) => { if (e) setEmail(e); });
   }, []);
@@ -79,17 +79,16 @@ export default function LoginScreen({ onLoginSuccess }: Props) {
       <View style={styles.container}>
         <View style={styles.configNotice}>
           <MaterialCommunityIcons name="alert-circle-outline" size={48} color="#F59E0B" />
-          <Text style={styles.configTitle}>尚未配置 Firebase</Text>
+          <Text style={styles.configTitle}>尚未配置 Supabase</Text>
           <Text style={styles.configText}>
-            请在 app.json 的 expo.extra.firebase 中填入 Firebase 项目配置，{'\n'}
+            请在 app.json 的 expo.extra.supabase 中填入 Supabase 项目配置，{'\n'}
             然后重启 App。{'\n\n'}
             获取步骤：{'\n'}
-            1. 打开 firebase.google.com 并登录账号{'\n'}
-            2. 创建项目 → 添加 Web App{'\n'}
-            3. 在"SDK 设置和配置 → npm"里复制 firebaseConfig{'\n'}
-            4. 粘贴到 app.json 的 extra.firebase 对应字段{'\n'}
-            5. Firebase 控制台 → Authentication → Sign-in method → 启用 Email/Password{'\n'}
-            6. Firebase 控制台 → Firestore Database → 创建数据库 → 应用 firestore.rules
+            1. 打开 supabase.com 并登录账号{'\n'}
+            2. 创建项目 → 获取 Project URL 和 anon/public key{'\n'}
+            3. 粘贴到 app.json 的 extra.supabase 对应字段{'\n'}
+            4. 创建 user_data 表（user_id, data, updated_at）{'\n'}
+            5. 开启 Email Auth provider
           </Text>
         </View>
       </View>

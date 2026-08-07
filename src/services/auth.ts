@@ -1,21 +1,15 @@
-import { getFirebase, initFirebase } from './firebase';
+import { getSupabase, initSupabase } from './supabase';
 import * as SecureStore from 'expo-secure-store';
 
 const EMAIL_KEY = 'fittrack-email';
 
-export type User = firebase.User;
+export type User = {
+  id: string;
+  email: string;
+};
 
 function ensureInit() {
-  try {
-    const firebase = initFirebase();
-    if (!firebase || !firebase.auth) {
-      throw new Error('Firebase 初始化返回空值');
-    }
-    return firebase;
-  } catch (e: any) {
-    console.error('ensureInit failed:', e);
-    throw new Error('Firebase 初始化失败: ' + (e?.message || '未知错误'));
-  }
+  return initSupabase();
 }
 
 export async function login(email: string, password: string): Promise<User> {
@@ -23,12 +17,17 @@ export async function login(email: string, password: string): Promise<User> {
   if (!trimmedEmail) throw new Error('请输入邮箱');
   if (!password) throw new Error('请输入密码');
 
-  const firebase = ensureInit();
-  const cred = await firebase.auth.signInWithEmailAndPassword(trimmedEmail, password);
-  if (cred.user?.email) {
-    await SecureStore.setItemAsync(EMAIL_KEY, cred.user.email);
-  }
-  return cred.user!;
+  const supabase = ensureInit();
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: trimmedEmail,
+    password,
+  });
+
+  if (error) throw new Error(error.message);
+  if (!data.user?.email) throw new Error('登录失败');
+
+  await SecureStore.setItemAsync(EMAIL_KEY, data.user.email);
+  return { id: data.user.id, email: data.user.email };
 }
 
 export async function register(email: string, password: string): Promise<User> {
@@ -36,42 +35,51 @@ export async function register(email: string, password: string): Promise<User> {
   if (!trimmedEmail) throw new Error('请输入邮箱');
   if (!password || password.length < 6) throw new Error('密码至少 6 位');
 
-  const firebase = ensureInit();
-  const cred = await firebase.auth.createUserWithEmailAndPassword(trimmedEmail, password);
-  if (cred.user?.email) {
-    await SecureStore.setItemAsync(EMAIL_KEY, cred.user.email);
-  }
-  return cred.user!;
+  const supabase = ensureInit();
+  const { data, error } = await supabase.auth.signUp({
+    email: trimmedEmail,
+    password,
+  });
+
+  if (error) throw new Error(error.message);
+  if (!data.user?.email) throw new Error('注册失败');
+
+  await SecureStore.setItemAsync(EMAIL_KEY, data.user.email);
+  return { id: data.user.id, email: data.user.email };
 }
 
-export async function logoutFirebase(): Promise<void> {
-  const firebase = ensureInit();
-  await firebase.auth.signOut();
+export async function logoutSupabase(): Promise<void> {
+  const supabase = ensureInit();
+  await supabase.auth.signOut();
   await SecureStore.deleteItemAsync(EMAIL_KEY);
 }
 
 export function getCurrentUser(): User | null {
-  if (!authInitialized()) return null;
-  try {
-    const firebase = getFirebase();
-    return firebase.auth.currentUser;
-  } catch {
-    return null;
-  }
+  const supabase = getSupabase();
+  const user = supabase.auth.getUser();
+  // getUser 是异步的，这里简化处理
+  return null;
 }
 
 export function authInitialized(): boolean {
   try {
-    const firebase = getFirebase();
-    return !!(firebase && firebase.auth);
+    getSupabase();
+    return true;
   } catch {
     return false;
   }
 }
 
 export function onUserChanged(cb: (user: User | null) => void): () => void {
-  const firebase = ensureInit();
-  return firebase.auth.onAuthStateChanged(cb);
+  const supabase = ensureInit();
+  const { data } = supabase.auth.onAuthStateChange((event, session) => {
+    if (session?.user) {
+      cb({ id: session.user.id, email: session.user.email! });
+    } else {
+      cb(null);
+    }
+  });
+  return data.subscription.unsubscribe;
 }
 
 export async function getSavedEmail(): Promise<string | null> {

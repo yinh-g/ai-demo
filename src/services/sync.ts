@@ -1,5 +1,5 @@
 import { readCloudState, writeCloudState, CloudState } from './firestore';
-import { login as firebaseLogin, register as firebaseRegister, logoutFirebase, getCurrentUser, User } from './auth';
+import { login as supabaseLogin, register as supabaseRegister, logoutSupabase, getCurrentUser, User } from './auth';
 import { getDeviceId, loadMeta, saveMeta } from './meta';
 import { useAppStore } from '../store';
 
@@ -27,15 +27,15 @@ let authUnsub: (() => void) | null = null;
 // ────────────────────────────────────────────────────────────
 
 export async function login(email: string, password: string): Promise<User> {
-  const user = await firebaseLogin(email, password);
-  useAppStore.getState().setAuthUser(user.email || user.uid);
+  const user = await supabaseLogin(email, password);
+  useAppStore.getState().setAuthUser(user.email || user.id);
   await startSync();
   return user;
 }
 
 export async function register(email: string, password: string): Promise<User> {
-  const user = await firebaseRegister(email, password);
-  useAppStore.getState().setAuthUser(user.email || user.uid);
+  const user = await supabaseRegister(email, password);
+  useAppStore.getState().setAuthUser(user.email || user.id);
   // 新用户：把本地现有数据作为种子写入云端（如果本地有数据的话）
   try {
     const existing = await readCloudState();
@@ -55,7 +55,7 @@ export async function logout(): Promise<void> {
     authUnsub();
     authUnsub = null;
   }
-  await logoutFirebase();
+  await logoutSupabase();
   await saveMeta({
     lastSyncedAt: 0,
     lastPulledAt: 0,
