@@ -1,7 +1,8 @@
-import { initializeApp, FirebaseApp, getApps, getApp } from 'firebase/app';
-import { getAuth, Auth } from 'firebase/auth';
+import { initializeApp, FirebaseApp, getApps, getApp, deleteApp } from 'firebase/app';
+import { initializeAuth, getAuth, Auth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface FirebaseConfig {
   apiKey: string;
@@ -14,13 +15,13 @@ export interface FirebaseConfig {
 
 function getFirebaseConfig(): FirebaseConfig {
   let config: FirebaseConfig | undefined;
-  
+
   try {
     config = Constants.expoConfig?.extra?.firebase as FirebaseConfig | undefined;
   } catch {
     // Constants.expoConfig 可能在某些环境下不可用
   }
-  
+
   if (!config) {
     config = {
       apiKey: "AIzaSyAmoDGDdnjmtK3MRNu4iECbBzsQ595wJ0c",
@@ -31,7 +32,7 @@ function getFirebaseConfig(): FirebaseConfig {
       appId: "1:659723342601:web:f86d1deeff79fd8813f9d8"
     };
   }
-  
+
   if (!config || !config.apiKey || config.apiKey === 'YOUR_API_KEY') {
     throw new Error('Firebase 未配置');
   }
@@ -41,18 +42,33 @@ function getFirebaseConfig(): FirebaseConfig {
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
+let initAttempted = false;
 
 export function initFirebase(): { app: FirebaseApp; auth: Auth; db: Firestore } {
   if (app && auth && db) {
     return { app, auth, db };
   }
-  
+
   const config = getFirebaseConfig();
-  
-  // 总是重新初始化，避免 getApp() 返回未注册 auth 的实例
+
+  // 如果之前有失败的初始化，清理并重新开始
+  if (initAttempted && !auth) {
+    try {
+      const existingApps = getApps();
+      existingApps.forEach((existingApp) => {
+        deleteApp(existingApp);
+      });
+    } catch {
+      // 忽略清理错误
+    }
+    app = null;
+    auth = null;
+    db = null;
+    initAttempted = false;
+  }
+
   if (!app) {
     if (getApps().length > 0) {
-      // 如果已有 app，尝试获取，但可能需要重新初始化
       try {
         app = getApp();
       } catch {
@@ -62,23 +78,33 @@ export function initFirebase(): { app: FirebaseApp; auth: Auth; db: Firestore } 
       app = initializeApp(config);
     }
   }
-  
+
   if (!app) {
     throw new Error('Firebase app 初始化失败');
   }
-  
-  // 直接获取 auth，不要条件判断
-  try {
-    auth = getAuth(app);
-  } catch (e) {
-    console.error('getAuth failed:', e);
-    throw new Error('Firebase Auth 初始化失败: ' + (e as any)?.message);
+
+  // 使用 initializeAuth 而不是 getAuth
+  if (!auth) {
+    try {
+      auth = initializeAuth(app, {
+        persistence: getReactNativePersistence(AsyncStorage)
+      });
+    } catch (e: any) {
+      // 如果已经初始化过，使用 getAuth
+      if (e.message?.includes('already')) {
+        auth = getAuth(app);
+      } else {
+        console.error('initializeAuth failed:', e);
+        throw new Error('Firebase Auth 初始化失败: ' + e?.message);
+      }
+    }
   }
-  
+
   if (!db) {
     db = getFirestore(app);
   }
-  
+
+  initAttempted = true;
   return { app, auth, db };
 }
 
