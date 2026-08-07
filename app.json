@@ -38,13 +38,9 @@
       ]
     ],
     "extra": {
-      "firebase": {
-        "apiKey": "AIzaSyAmoDGDdnjmtK3MRNu4iECbBzsQ595wJ0c",
-        "authDomain": "fittrack-prod-39e72.firebaseapp.com",
-        "projectId": "fittrack-prod-39e72",
-        "storageBucket": "fittrack-prod-39e72.firebasestorage.app",
-        "messagingSenderId": "659723342601",
-        "appId": "1:659723342601:web:f86d1deeff79fd8813f9d8"
+      "supabase": {
+        "url": "https://pnncwyozewabagebdgxv.supabase.co",
+        "anonKey": "sb_publishable_4fu8BY9uwrqS7xLzlUwEBQ_5A76zEEw"
       }
     }
   }
