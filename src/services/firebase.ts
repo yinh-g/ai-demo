@@ -1,8 +1,7 @@
 import { initializeApp, FirebaseApp, getApps, getApp } from 'firebase/app';
-import { initializeAuth, getAuth, Auth, getReactNativePersistence } from 'firebase/auth';
+import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import Constants from 'expo-constants';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface FirebaseConfig {
   apiKey: string;
@@ -50,24 +49,30 @@ export function initFirebase(): { app: FirebaseApp; auth: Auth; db: Firestore } 
   
   const config = getFirebaseConfig();
   
+  // 总是重新初始化，避免 getApp() 返回未注册 auth 的实例
   if (!app) {
-    app = getApps().length ? getApp() : initializeApp(config);
+    if (getApps().length > 0) {
+      // 如果已有 app，尝试获取，但可能需要重新初始化
+      try {
+        app = getApp();
+      } catch {
+        app = initializeApp(config);
+      }
+    } else {
+      app = initializeApp(config);
+    }
   }
   
   if (!app) {
     throw new Error('Firebase app 初始化失败');
   }
   
-  if (!auth) {
-    try {
-      // 尝试使用 initializeAuth 并设置持久化
-      auth = initializeAuth(app, {
-        persistence: getReactNativePersistence(AsyncStorage)
-      });
-    } catch {
-      // 如果已经初始化过，使用 getAuth
-      auth = getAuth(app);
-    }
+  // 直接获取 auth，不要条件判断
+  try {
+    auth = getAuth(app);
+  } catch (e) {
+    console.error('getAuth failed:', e);
+    throw new Error('Firebase Auth 初始化失败: ' + (e as any)?.message);
   }
   
   if (!db) {
