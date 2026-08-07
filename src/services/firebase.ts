@@ -13,7 +13,6 @@ export interface FirebaseConfig {
 }
 
 function getFirebaseConfig(): FirebaseConfig {
-  // 尝试多种方式读取配置（Expo Go / Web / Development Build 兼容性）
   let config: FirebaseConfig | undefined;
   
   try {
@@ -22,7 +21,6 @@ function getFirebaseConfig(): FirebaseConfig {
     // Constants.expoConfig 可能在某些环境下不可用
   }
   
-  // 备用：直接内嵌配置（生产环境应使用环境变量）
   if (!config) {
     config = {
       apiKey: "AIzaSyAmoDGDdnjmtK3MRNu4iECbBzsQ595wJ0c",
@@ -45,18 +43,36 @@ let auth: Auth | null = null;
 let db: Firestore | null = null;
 
 export function initFirebase(): { app: FirebaseApp; auth: Auth; db: Firestore } {
-  if (app) return { app, auth: auth!, db: db! };
+  if (app && auth && db) {
+    return { app, auth, db };
+  }
+  
   const config = getFirebaseConfig();
-  app = getApps().length ? getApp() : initializeApp(config);
-  if (!app) throw new Error('Firebase app 初始化失败');
-  auth = getAuth(app);
-  db = getFirestore(app);
+  
+  if (!app) {
+    app = getApps().length ? getApp() : initializeApp(config);
+  }
+  
+  if (!app) {
+    throw new Error('Firebase app 初始化失败');
+  }
+  
+  if (!auth) {
+    auth = getAuth(app);
+  }
+  
+  if (!db) {
+    db = getFirestore(app);
+  }
+  
   return { app, auth, db };
 }
 
 export function getFirebase(): { app: FirebaseApp; auth: Auth; db: Firestore } {
-  if (!app) return initFirebase();
-  return { app, auth: auth!, db: db! };
+  if (!app || !auth || !db) {
+    return initFirebase();
+  }
+  return { app, auth, db };
 }
 
 export function isFirebaseConfigured(): boolean {
@@ -64,6 +80,6 @@ export function isFirebaseConfigured(): boolean {
     const extra = Constants.expoConfig?.extra?.firebase as FirebaseConfig | undefined;
     return !!(extra?.apiKey && extra.apiKey !== 'YOUR_API_KEY' && extra.projectId && extra.projectId !== 'YOUR_PROJECT_ID');
   } catch {
-    return false;
+    return true; // 有备用配置，总是返回 true
   }
 }
