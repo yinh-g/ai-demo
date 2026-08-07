@@ -51,8 +51,13 @@ interface AppState {
   setSyncStatus: (status: AppState['syncStatus']) => void;
 
   // 登录态（运行时，不持久化）。由 sync.login/logout 维护
+// 登录态（不持久化）
   authUser: string | null;
   setAuthUser: (user: string | null) => void;
+
+  // 游客模式（不持久化）
+  isGuest: boolean;
+  setIsGuest: (isGuest: boolean) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -230,7 +235,11 @@ export const useAppStore = create<AppState>()(
 
       // 登录态（不持久化）
       authUser: null,
-      setAuthUser: (user) => set({ authUser: user })
+      setAuthUser: (user) => set({ authUser: user }),
+
+      // 游客模式（不持久化）
+      isGuest: false,
+      setIsGuest: (isGuest) => set({ isGuest })
     }),
     {
       name: 'fitness-tracker-storage',

@@ -12,6 +12,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { login, register } from '../services/sync';
 import { getSavedEmail } from '../services/auth';
 import { isFirebaseConfigured } from '../services/firebase';
+import { useAppStore } from '../store';
 
 type Mode = 'login' | 'register';
 
@@ -41,6 +42,7 @@ export default function LoginScreen({ onLoginSuccess }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [configured, setConfigured] = useState(true);
+  const setIsGuest = useAppStore((state) => state.setIsGuest);
 
   useEffect(() => {
     setConfigured(isFirebaseConfigured());
@@ -170,6 +172,15 @@ export default function LoginScreen({ onLoginSuccess }: Props) {
                 : (mode === 'login' ? '登录' : '创建账号')}
             </Button>
 
+            <Button
+              mode="outlined"
+              onPress={() => setIsGuest(true)}
+              style={styles.guestButton}
+              textColor="#64748B"
+            >
+              游客模式（暂不登录）
+            </Button>
+
             {mode === 'login' ? (
               <Text style={styles.tip}>
                 忘记密码？可使用 Firebase 控制台重置密码，App 端重置密码功能后续更新。
@@ -265,6 +276,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#475569',
     marginBottom: 4,
+  },
+  guestButton: {
+    marginTop: 12,
+    borderRadius: 8,
+    borderColor: '#CBD5E1',
   },
   configNotice: {
     flex: 1,

@@ -8,7 +8,7 @@ import { syncNow, logout } from '../services/sync';
 import { getCurrentUser } from '../services/auth';
 
 export default function ProfileScreen({ navigation }: any) {
-  const { userProfile, workoutRecords, exercises, workoutPlans, syncStatus } = useAppStore();
+  const { userProfile, workoutRecords, exercises, workoutPlans, syncStatus, isGuest, setIsGuest, authUser, setAuthUser } = useAppStore();
   const [meta, setMeta] = useState<LocalSyncMeta | null>(null);
   const [syncing, setSyncing] = useState(false);
 
@@ -68,6 +68,24 @@ export default function ProfileScreen({ navigation }: any) {
   };
 
   const handleLogout = () => {
+    if (isGuest) {
+      Alert.alert(
+        '登录账号',
+        '登录后可同步数据到云端，换设备不丢失。',
+        [
+          { text: '取消', style: 'cancel' },
+          {
+            text: '去登录',
+            onPress: () => {
+              setIsGuest(false);
+              setAuthUser(null);
+            },
+          },
+        ]
+      );
+      return;
+    }
+
     Alert.alert(
       '退出登录',
       '退出后本地数据保留，但将不再同步到云端。确定退出吗？',
@@ -220,7 +238,7 @@ export default function ProfileScreen({ navigation }: any) {
           <View style={styles.syncInfoRow}>
             <Text style={styles.syncLabel}>账号</Text>
             <Text style={styles.syncValue} numberOfLines={1}>
-              {getCurrentUser()?.email || '-'}
+              {isGuest ? '游客模式（数据仅本地保存）' : (getCurrentUser()?.email || '-')}
             </Text>
           </View>
           <View style={styles.syncInfoRow}>
@@ -244,11 +262,11 @@ export default function ProfileScreen({ navigation }: any) {
               mode="text"
               onPress={handleLogout}
               style={styles.logoutButton}
-              icon="logout"
+              icon={isGuest ? "login" : "logout"}
               compact
-              textColor="#EF4444"
+              textColor={isGuest ? "#6366F1" : "#EF4444"}
             >
-              退出登录
+              {isGuest ? '登录账号' : '退出登录'}
             </Button>
           </View>
         </Card.Content>

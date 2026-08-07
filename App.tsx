@@ -86,7 +86,7 @@ function MainTabs() {
 }
 
 function AppContent() {
-  const { exercises, addExercise, authUser, setAuthUser } = useAppStore();
+  const { exercises, addExercise, authUser, setAuthUser, isGuest } = useAppStore();
   const [isReady, setIsReady] = useState(false);
   const [firebaseInit, setFirebaseInit] = useState<{ ok: boolean; error?: string }>({ ok: false });
 
@@ -145,8 +145,8 @@ function AppContent() {
     );
   }
 
-  // Firebase 未配置：仍显示 LoginScreen，会给出友好提示指引配置
-  if (!authUser) {
+  // 未登录且非游客：显示登录页
+  if (!authUser && !isGuest) {
     return (
       <SafeAreaProvider>
         <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
