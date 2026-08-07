@@ -1,6 +1,6 @@
-import { initializeApp, FirebaseApp, getApps, getApp } from 'firebase/app';
-import { getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore } from 'firebase/firestore';
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/auth';
+import 'firebase/compat/firestore';
 import Constants from 'expo-constants';
 
 export interface FirebaseConfig {
@@ -38,62 +38,33 @@ function getFirebaseConfig(): FirebaseConfig {
   return config;
 }
 
-let app: FirebaseApp | null = null;
-let auth: Auth | null = null;
-let db: Firestore | null = null;
+let app: firebase.app.App | null = null;
 
-export function initFirebase(): { app: FirebaseApp; auth: Auth; db: Firestore } {
-  if (app && auth && db) {
-    return { app, auth, db };
+export function initFirebase(): { app: firebase.app.App; auth: firebase.auth.Auth; db: firebase.firestore.Firestore } {
+  if (app) {
+    return { app, auth: app.auth(), db: app.firestore() };
   }
 
   const config = getFirebaseConfig();
 
-  // 必须每次都重新初始化，避免 getApp() 返回的实例没有 auth
-  try {
-    // 如果已有实例，尝试获取
-    if (getApps().length > 0) {
-      app = getApp();
-    }
-  } catch {
-    app = null;
-  }
-
-  // 如果没有实例，或者实例没有 auth，重新初始化
-  if (!app) {
-    app = initializeApp(config);
+  if (firebase.apps.length > 0) {
+    app = firebase.app();
+  } else {
+    app = firebase.initializeApp(config);
   }
 
   if (!app) {
     throw new Error('Firebase app 初始化失败');
   }
 
-  // 获取 auth - 在 React Native 中需要确保 auth 已注册
-  try {
-    auth = getAuth(app);
-  } catch (e: any) {
-    // 如果 auth 未注册，重新初始化整个 app
-    console.error('getAuth failed, reinitializing:', e);
-    app = initializeApp(config);
-    auth = getAuth(app);
-  }
-
-  if (!auth) {
-    throw new Error('Firebase Auth 初始化失败');
-  }
-
-  if (!db) {
-    db = getFirestore(app);
-  }
-
-  return { app, auth, db };
+  return { app, auth: app.auth(), db: app.firestore() };
 }
 
-export function getFirebase(): { app: FirebaseApp; auth: Auth; db: Firestore } {
-  if (!app || !auth || !db) {
+export function getFirebase(): { app: firebase.app.App; auth: firebase.auth.Auth; db: firebase.firestore.Firestore } {
+  if (!app) {
     return initFirebase();
   }
-  return { app, auth, db };
+  return { app, auth: app.auth(), db: app.firestore() };
 }
 
 export function isFirebaseConfigured(): boolean {
@@ -101,6 +72,6 @@ export function isFirebaseConfigured(): boolean {
     const extra = Constants.expoConfig?.extra?.firebase as FirebaseConfig | undefined;
     return !!(extra?.apiKey && extra.apiKey !== 'YOUR_API_KEY' && extra.projectId && extra.projectId !== 'YOUR_PROJECT_ID');
   } catch {
-    return true; // 有备用配置，总是返回 true
+    return true;
   }
 }

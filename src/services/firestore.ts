@@ -1,4 +1,3 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { getFirebase, initFirebase } from './firebase';
 import { getCurrentUser } from './auth';
 
@@ -21,17 +20,17 @@ function docRef() {
   const user = getCurrentUser();
   if (!user) throw new Error('未登录');
   const { db } = getFirebase();
-  return doc(db, COLLECTION, user.uid, SUBCOLLECTION, DOC);
+  return db.collection(COLLECTION).doc(user.uid).collection(SUBCOLLECTION).doc(DOC);
 }
 
 export async function readCloudState(): Promise<CloudState | null> {
   ensureInit();
-  const snap = await getDoc(docRef());
-  if (!snap.exists()) return null;
+  const snap = await docRef().get();
+  if (!snap.exists) return null;
   return snap.data() as CloudState;
 }
 
 export async function writeCloudState(payload: CloudState): Promise<void> {
   ensureInit();
-  await setDoc(docRef(), payload, { merge: false });
+  await docRef().set(payload);
 }

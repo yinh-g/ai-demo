@@ -1,17 +1,9 @@
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  User,
-  Unsubscribe,
-} from 'firebase/auth';
 import { getFirebase, initFirebase } from './firebase';
 import * as SecureStore from 'expo-secure-store';
 
 const EMAIL_KEY = 'fittrack-email';
 
-export type { User };
+export type User = firebase.User;
 
 function ensureInit() {
   try {
@@ -30,31 +22,31 @@ export async function login(email: string, password: string): Promise<User> {
   const trimmedEmail = email.trim().toLowerCase();
   if (!trimmedEmail) throw new Error('请输入邮箱');
   if (!password) throw new Error('请输入密码');
-  
+
   const firebase = ensureInit();
-  const cred = await signInWithEmailAndPassword(firebase.auth, trimmedEmail, password);
-  if (cred.user.email) {
+  const cred = await firebase.auth.signInWithEmailAndPassword(trimmedEmail, password);
+  if (cred.user?.email) {
     await SecureStore.setItemAsync(EMAIL_KEY, cred.user.email);
   }
-  return cred.user;
+  return cred.user!;
 }
 
 export async function register(email: string, password: string): Promise<User> {
   const trimmedEmail = email.trim().toLowerCase();
   if (!trimmedEmail) throw new Error('请输入邮箱');
   if (!password || password.length < 6) throw new Error('密码至少 6 位');
-  
+
   const firebase = ensureInit();
-  const cred = await createUserWithEmailAndPassword(firebase.auth, trimmedEmail, password);
-  if (cred.user.email) {
+  const cred = await firebase.auth.createUserWithEmailAndPassword(trimmedEmail, password);
+  if (cred.user?.email) {
     await SecureStore.setItemAsync(EMAIL_KEY, cred.user.email);
   }
-  return cred.user;
+  return cred.user!;
 }
 
 export async function logoutFirebase(): Promise<void> {
   const firebase = ensureInit();
-  await signOut(firebase.auth);
+  await firebase.auth.signOut();
   await SecureStore.deleteItemAsync(EMAIL_KEY);
 }
 
@@ -77,9 +69,9 @@ export function authInitialized(): boolean {
   }
 }
 
-export function onUserChanged(cb: (user: User | null) => void): Unsubscribe {
+export function onUserChanged(cb: (user: User | null) => void): () => void {
   const firebase = ensureInit();
-  return onAuthStateChanged(firebase.auth, cb);
+  return firebase.auth.onAuthStateChanged(cb);
 }
 
 export async function getSavedEmail(): Promise<string | null> {
