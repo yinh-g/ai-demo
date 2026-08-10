@@ -1,5 +1,5 @@
 import { getSupabase, initSupabase } from './supabase';
-import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const EMAIL_KEY = 'fittrack-email';
 
@@ -26,7 +26,7 @@ export async function login(email: string, password: string): Promise<User> {
   if (error) throw new Error(error.message);
   if (!data.user?.email) throw new Error('登录失败');
 
-  await SecureStore.setItemAsync(EMAIL_KEY, data.user.email);
+  await AsyncStorage.setItem(EMAIL_KEY, data.user.email);
   return { id: data.user.id, email: data.user.email };
 }
 
@@ -44,14 +44,14 @@ export async function register(email: string, password: string): Promise<User> {
   if (error) throw new Error(error.message);
   if (!data.user?.email) throw new Error('注册失败');
 
-  await SecureStore.setItemAsync(EMAIL_KEY, data.user.email);
+  await AsyncStorage.setItem(EMAIL_KEY, data.user.email);
   return { id: data.user.id, email: data.user.email };
 }
 
 export async function logoutSupabase(): Promise<void> {
   const supabase = ensureInit();
   await supabase.auth.signOut();
-  await SecureStore.deleteItemAsync(EMAIL_KEY);
+  await AsyncStorage.removeItem(EMAIL_KEY);
 }
 
 export function getCurrentUser(): User | null {
@@ -83,5 +83,5 @@ export function onUserChanged(cb: (user: User | null) => void): () => void {
 }
 
 export async function getSavedEmail(): Promise<string | null> {
-  return SecureStore.getItemAsync(EMAIL_KEY);
+  return AsyncStorage.getItem(EMAIL_KEY);
 }
