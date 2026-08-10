@@ -54,11 +54,11 @@ export async function logoutSupabase(): Promise<void> {
   await AsyncStorage.removeItem(EMAIL_KEY);
 }
 
-export function getCurrentUser(): User | null {
+export async function getCurrentUser(): Promise<User | null> {
   const supabase = getSupabase();
-  const user = supabase.auth.getUser();
-  // getUser 是异步的，这里简化处理
-  return null;
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) return null;
+  return { id: data.user.id, email: data.user.email || '' };
 }
 
 export function authInitialized(): boolean {

@@ -16,7 +16,7 @@ function ensureInit() {
 
 export async function readCloudState(): Promise<CloudState | null> {
   ensureInit();
-  const user = getCurrentUser();
+  const user = await getCurrentUser();
   if (!user) throw new Error('未登录');
 
   const supabase = getSupabase();
@@ -36,7 +36,7 @@ export async function readCloudState(): Promise<CloudState | null> {
 
 export async function writeCloudState(payload: CloudState): Promise<void> {
   ensureInit();
-  const user = getCurrentUser();
+  const user = await getCurrentUser();
   if (!user) throw new Error('未登录');
 
   const supabase = getSupabase();

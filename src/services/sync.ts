@@ -70,7 +70,8 @@ export async function logout(): Promise<void> {
 
 export async function startSync(): Promise<void> {
   if (isStarting) return;
-  if (!getCurrentUser()) return;
+  const user = await getCurrentUser();
+  if (!user) return;
   isStarting = true;
   useAppStore.getState().setSyncStatus('syncing');
 
@@ -108,7 +109,8 @@ export function stopSync(): void {
 // ────────────────────────────────────────────────────────────
 
 export async function pullNow(): Promise<boolean> {
-  if (!getCurrentUser()) return false;
+  const user = await getCurrentUser();
+  if (!user) return false;
 
   try {
     const cloud = await readCloudState();
@@ -153,7 +155,10 @@ function schedulePush(): void {
 }
 
 async function push(force = false): Promise<void> {
-  if (!force && !getCurrentUser()) return;
+  if (!force) {
+    const user = await getCurrentUser();
+    if (!user) return;
+  }
 
   const deviceId = await getDeviceId();
   const payload = buildPayload(deviceId);
