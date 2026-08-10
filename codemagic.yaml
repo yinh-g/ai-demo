@@ -16,3 +16,27 @@ workflows:
           ./gradlew assembleRelease --no-daemon
     artifacts:
       - android/app/build/outputs/apk/release/app-release.apk
+
+  ios-workflow:
+    name: iOS Build
+    instance_type: mac_mini_m1
+    max_build_duration: 60
+    environment:
+      node: 20
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Install npm dependencies
+        script: npm ci
+      - name: Expo Prebuild
+        script: npx expo prebuild --platform ios --clean
+      - name: Install CocoaPods dependencies
+        script: |
+          cd ios
+          pod install --repo-update
+      - name: Build iOS release
+        script: |
+          cd ios
+          xcodebuild -workspace FitTrack.xcworkspace -scheme FitTrack -configuration Release -sdk iphoneos -derivedDataPath build
+    artifacts:
+      - ios/build/Build/Products/Release-iphoneos/*.app
