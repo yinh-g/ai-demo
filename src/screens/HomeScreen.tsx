@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, useWindowDimensions } from 'react-native';
 import { Text, Card, Button, Divider, Avatar, ProgressBar, TextInput, Portal, Dialog } from 'react-native-paper';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Pedometer } from 'expo-sensors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppStore } from '../store';
@@ -121,10 +122,14 @@ export default function HomeScreen({ navigation }: any) {
     }
   };
 
+  const { width } = useWindowDimensions();
+  const isSmallScreen = width < 375;
+
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={styles.container} edges={['top']}>
+    <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>FitTrack</Text>
+        <Text style={[styles.headerTitle, isSmallScreen && styles.headerTitleSmall]}>FitTrack</Text>
         <Text style={styles.headerSubtitle}>记录每一次突破</Text>
       </View>
 
@@ -360,6 +365,7 @@ export default function HomeScreen({ navigation }: any) {
         </Dialog>
       </Portal>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -367,6 +373,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  scrollView: {
+    flex: 1,
   },
   header: {
     paddingHorizontal: 20,
@@ -380,6 +389,9 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#1E293B',
+  },
+  headerTitleSmall: {
+    fontSize: 20,
   },
   headerSubtitle: {
     fontSize: 14,
