@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, ScrollView, Vibration } from 'react-native';
 import { Text, Card, Button, TextInput, Portal, Dialog, ProgressBar, Avatar } from 'react-native-paper';
 import { useAppStore } from '../store';
-import { ExerciseRecord, SetRecord } from '../types';
+import { ExerciseRecord, SetRecord, PlanExercise } from '../types';
+import ExercisePickerDialog from '../components/ExercisePickerDialog';
 
 export default function WorkoutSessionScreen({ navigation, route }: any) {
   const { planId } = route.params || {};
@@ -19,8 +20,21 @@ export default function WorkoutSessionScreen({ navigation, route }: any) {
   const restTimerRef = useRef<NodeJS.Timeout | null>(null);
   const elapsedTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // 训练中可临时调整动作列表：sessionExercises 从计划复制，运行期可增/换，不回写计划
+  const [sessionExercises, setSessionExercises] = useState<PlanExercise[]>([]);
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [pickerMode, setPickerMode] = useState<'add' | 'replace'>('add');
+
   const plan = planId ? workoutPlans.find(p => p.id === planId) : null;
-  const currentPlanExercise = plan?.exercises[currentExerciseIndex];
+
+  // 初始化 sessionExercises（仅在 plan 存在且未初始化时）
+  useEffect(() => {
+    if (plan && sessionExercises.length === 0) {
+      setSessionExercises(plan.exercises);
+    }
+  }, [plan]);
+
+  const currentPlanExercise = sessionExercises[currentExerciseIndex];
   const currentExercise = currentPlanExercise ? exercises.find(e => e.id === currentPlanExercise.exerciseId) : null;
 
   useEffect(() => {
@@ -130,7 +144,7 @@ export default function WorkoutSessionScreen({ navigation, route }: any) {
   };
 
   const handleNextExercise = () => {
-    if (plan && currentExerciseIndex < plan.exercises.length - 1) {
+    if (plan && currentExerciseIndex < sessionExercises.length - 1) {
       setCurrentExerciseIndex(prev => prev + 1);
     } else {
       endWorkout();
@@ -147,6 +161,56 @@ export default function WorkoutSessionScreen({ navigation, route }: any) {
   const handleCancel = () => {
     endWorkout();
     navigation.goBack();
+  };
+
+  // 临时添加动作到当前训练（不修改原计划）
+  const handleAddExercise = () => {
+    setPickerMode('add');
+    setPickerVisible(true);
+  };
+
+  // 替换当前动作（仅当本动作尚无完成组时允许，避免丢失已记录数据）
+  const handleReplaceExercise = () => {
+    const hasCompletedSets = currentWorkout?.exercises.some(
+      (e) => e.exerciseId === currentExercise?.id && (e.sets?.length || 0) > 0
+    );
+    if (hasCompletedSets) {
+      return;
+    }
+    setPickerMode('replace');
+    setPickerVisible(true);
+  };
+
+  const onPickExercise = (picked: any) => {
+    if (pickerMode === 'replace') {
+      // 替换当前条目的 exerciseId，保留计划设定的组数/次数/休息
+      setSessionExercises((prev) =>
+        prev.map((pe, idx) =>
+          idx === currentExerciseIndex ? { ...pe, exerciseId: picked.id } : pe
+        )
+      );
+      // 同步移除 currentWorkout 中可能存在的空记录（无 sets 的占位）
+      if (currentWorkout) {
+        const cleaned = currentWorkout.exercises.filter(
+          (e) => e.exerciseId !== currentExercise?.id || (e.sets?.length || 0) > 0
+        );
+        if (cleaned.length !== currentWorkout.exercises.length) {
+          updateCurrentWorkout({ exercises: cleaned });
+        }
+      }
+    } else {
+      // 追加新动作到末尾
+      const newPlanExercise: PlanExercise = {
+        exerciseId: picked.id,
+        sets: 3,
+        reps: 10,
+        weight: 0,
+        restTime: 90,
+        order: sessionExercises.length,
+      };
+      setSessionExercises((prev) => [...prev, newPlanExercise]);
+    }
+    setPickerVisible(false);
   };
 
   const currentExerciseRecord = currentWorkout?.exercises.find(e => e.exerciseId === currentExercise?.id);
@@ -181,7 +245,7 @@ export default function WorkoutSessionScreen({ navigation, route }: any) {
           <Card.Content>
             <View style={styles.exerciseHeaderRow}>
               <View style={styles.progressBadge}>
-                <Text style={styles.progressText}>{currentExerciseIndex + 1} / {plan.exercises.length}</Text>
+                <Text style={styles.progressText}>{currentExerciseIndex + 1} / {sessionExercises.length}</Text>
               </View>
               <Avatar.Icon size={36} icon="dumbbell" style={styles.exerciseIcon} color="#fff" />
             </View>
@@ -268,6 +332,30 @@ export default function WorkoutSessionScreen({ navigation, route }: any) {
           </Card.Content>
         </Card>
 
+        <View style={styles.adjustButtons}>
+          <Button
+            mode="outlined"
+            onPress={handleAddExercise}
+            style={styles.adjustButton}
+            labelStyle={styles.adjustButtonLabel}
+            icon="plus"
+            textColor="#6366F1"
+          >
+            添加动作
+          </Button>
+          <Button
+            mode="outlined"
+            onPress={handleReplaceExercise}
+            disabled={completedSets.length > 0}
+            style={styles.adjustButton}
+            labelStyle={styles.adjustButtonLabel}
+            icon="swap-horizontal"
+            textColor="#F59E0B"
+          >
+            {completedSets.length > 0 ? '已记录不可替换' : '替换动作'}
+          </Button>
+        </View>
+
         <View style={styles.navigationButtons}>
           <Button
             mode="outlined"
@@ -284,9 +372,9 @@ export default function WorkoutSessionScreen({ navigation, route }: any) {
             onPress={handleNextExercise}
             style={[styles.navButton, styles.navButtonPrimary]}
             labelStyle={styles.navButtonLabel}
-            icon={currentExerciseIndex === plan.exercises.length - 1 ? 'flag-checkered' : 'arrow-right'}
+            icon={currentExerciseIndex === sessionExercises.length - 1 ? 'flag-checkered' : 'arrow-right'}
           >
-            {currentExerciseIndex === plan.exercises.length - 1 ? '完成训练' : '下一动作'}
+            {currentExerciseIndex === sessionExercises.length - 1 ? '完成训练' : '下一动作'}
           </Button>
         </View>
       </ScrollView>
@@ -319,6 +407,14 @@ export default function WorkoutSessionScreen({ navigation, route }: any) {
           </Dialog.Actions>
         </Dialog>
       </Portal>
+
+      <ExercisePickerDialog
+        visible={pickerVisible}
+        exercises={exercises}
+        title={pickerMode === 'replace' ? '替换当前动作' : '添加动作'}
+        onPick={onPickExercise}
+        onClose={() => setPickerVisible(false)}
+      />
     </View>
   );
 }
@@ -496,6 +592,21 @@ const styles = StyleSheet.create({
   },
   completeButtonLabel: {
     fontSize: 15,
+    fontWeight: '600',
+  },
+  adjustButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    gap: 10,
+  },
+  adjustButton: {
+    flex: 1,
+    borderRadius: 12,
+    borderColor: '#E2E8F0',
+  },
+  adjustButtonLabel: {
+    fontSize: 14,
     fontWeight: '600',
   },
   navigationButtons: {

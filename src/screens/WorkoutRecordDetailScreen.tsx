@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import { Text, Card, Button, Avatar, TextInput, Portal, Dialog, Divider, IconButton } from 'react-native-paper';
 import { useAppStore } from '../store';
-import { WorkoutRecord, SetRecord } from '../types';
+import { WorkoutRecord, SetRecord, ExerciseRecord } from '../types';
+import ExercisePickerDialog from '../components/ExercisePickerDialog';
 
 export default function WorkoutRecordDetailScreen({ navigation, route }: any) {
   const { recordId } = route.params || {};
@@ -18,6 +19,11 @@ export default function WorkoutRecordDetailScreen({ navigation, route }: any) {
 
   const [durationDialogVisible, setDurationDialogVisible] = useState(false);
   const [editDuration, setEditDuration] = useState('');
+
+  // 训练历史动作编辑：添加/替换动作
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [pickerMode, setPickerMode] = useState<'add' | 'replace'>('add');
+  const [replaceExerciseIndex, setReplaceExerciseIndex] = useState<number>(-1);
 
   if (!record) {
     return (
@@ -119,6 +125,120 @@ export default function WorkoutRecordDetailScreen({ navigation, route }: any) {
     setDurationDialogVisible(false);
   };
 
+  // 重新计算并保存 exercises 数组，自动同步 totalVolume
+  const persistExercises = (updatedExercises: ExerciseRecord[]) => {
+    const totalVolume = updatedExercises.reduce((sum, ex) =>
+      sum + (ex.sets || []).reduce((setSum, set) => setSum + (set.weight * set.reps), 0), 0
+    );
+    updateWorkoutRecord(record.id, {
+      exercises: updatedExercises,
+      totalVolume
+    });
+  };
+
+  // 添加新动作到训练历史（带一个默认空组：重量0/次数0，便于用户随后编辑）
+  const handleAddExercise = () => {
+    setPickerMode('add');
+    setPickerVisible(true);
+  };
+
+  // 替换某个动作（仅替换 exerciseId，保留已记录的组数据）
+  const handleReplaceExercise = (exerciseIndex: number) => {
+    setReplaceExerciseIndex(exerciseIndex);
+    setPickerMode('replace');
+    setPickerVisible(true);
+  };
+
+  const onPickExercise = (picked: any) => {
+    if (pickerMode === 'replace' && replaceExerciseIndex >= 0) {
+      // 替换 exerciseId，保留 sets
+      const updatedExercises = [...record.exercises];
+      const target = { ...updatedExercises[replaceExerciseIndex] };
+      if (target.exerciseId === picked.id) {
+        setPickerVisible(false);
+        setReplaceExerciseIndex(-1);
+        return;
+      }
+      target.exerciseId = picked.id;
+      updatedExercises[replaceExerciseIndex] = target;
+      persistExercises(updatedExercises);
+    } else {
+      // 追加新动作（无组数据）
+      const newRecord: ExerciseRecord = {
+        exerciseId: picked.id,
+        sets: [],
+      };
+      persistExercises([...record.exercises, newRecord]);
+    }
+    setPickerVisible(false);
+    setReplaceExerciseIndex(-1);
+  };
+
+  // 删除动作
+  const handleDeleteExercise = (exerciseIndex: number) => {
+    const exercise = exercises.find(e => e.id === record.exercises[exerciseIndex].exerciseId);
+    Alert.alert(
+      '删除动作',
+      `确定要从本条记录中删除「${exercise?.name || '该动作'}」及其所有组数据吗？`,
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '删除',
+          style: 'destructive',
+          onPress: () => {
+            const updatedExercises = record.exercises.filter((_, idx) => idx !== exerciseIndex);
+            persistExercises(updatedExercises);
+          }
+        }
+      ]
+    );
+  };
+
+  // 添加新组到指定动作（沿用上一组的重量/次数作为默认值，便于连续记录）
+  const handleAddSet = (exerciseIndex: number) => {
+    const updatedExercises = [...record.exercises];
+    const exerciseRecord = { ...updatedExercises[exerciseIndex] };
+    const sets = [...(exerciseRecord.sets || [])];
+    const lastSet = sets.length > 0 ? sets[sets.length - 1] : null;
+    const nextSetNumber = sets.length > 0
+      ? Math.max(...sets.map(s => s.setNumber)) + 1
+      : 1;
+    sets.push({
+      setNumber: nextSetNumber,
+      weight: lastSet?.weight ?? 0,
+      reps: lastSet?.reps ?? 0,
+      isCompleted: true,
+      restTime: lastSet?.restTime ?? 90,
+    });
+    exerciseRecord.sets = sets;
+    updatedExercises[exerciseIndex] = exerciseRecord;
+    persistExercises(updatedExercises);
+  };
+
+  // 删除指定组
+  const handleDeleteSet = (exerciseIndex: number, setIndex: number) => {
+    Alert.alert(
+      '删除组',
+      '确定要删除这组数据吗？',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '删除',
+          style: 'destructive',
+          onPress: () => {
+            const updatedExercises = [...record.exercises];
+            const exerciseRecord = { ...updatedExercises[exerciseIndex] };
+            const sets = (exerciseRecord.sets || []).filter((_, idx) => idx !== setIndex);
+            // 重排 setNumber
+            exerciseRecord.sets = sets.map((s, idx) => ({ ...s, setNumber: idx + 1 }));
+            updatedExercises[exerciseIndex] = exerciseRecord;
+            persistExercises(updatedExercises);
+          }
+        }
+      ]
+    );
+  };
+
   const formatDate = (dateStr: string) => {
     try {
       return new Date(dateStr).toLocaleDateString('zh-CN', {
@@ -204,19 +324,41 @@ export default function WorkoutRecordDetailScreen({ navigation, route }: any) {
         if (!exercise) return null;
 
         return (
-          <Card key={exerciseRecord.exerciseId} style={styles.card}>
+          <Card key={`${exerciseRecord.exerciseId}-${exIndex}`} style={styles.card}>
             <Card.Content>
               <View style={styles.exerciseHeader}>
                 <View style={styles.exerciseTitleRow}>
                   <Avatar.Icon size={32} icon="dumbbell" style={styles.exerciseIcon} color="#6366F1" />
-                  <View>
+                  <View style={styles.exerciseTitleInfo}>
                     <Text style={styles.exerciseName}>{exercise.name}</Text>
                     <Text style={styles.exerciseCategory}>{exercise.category}</Text>
                   </View>
                 </View>
+                <View style={styles.exerciseActions}>
+                  <IconButton
+                    icon="swap-horizontal"
+                    size={20}
+                    iconColor="#F59E0B"
+                    onPress={() => handleReplaceExercise(exIndex)}
+                    style={styles.editIcon}
+                  />
+                  <IconButton
+                    icon="trash-can-outline"
+                    size={20}
+                    iconColor="#EF4444"
+                    onPress={() => handleDeleteExercise(exIndex)}
+                    style={styles.editIcon}
+                  />
+                </View>
               </View>
 
               <Divider style={styles.divider} />
+
+              {exerciseRecord.sets?.length === 0 && (
+                <View style={styles.noSetsContainer}>
+                  <Text style={styles.noSetsText}>暂无组数据</Text>
+                </View>
+              )}
 
               {exerciseRecord.sets?.map((set, setIndex) => (
                 <View key={setIndex} style={styles.setRow}>
@@ -226,19 +368,52 @@ export default function WorkoutRecordDetailScreen({ navigation, route }: any) {
                     </View>
                     <Text style={styles.setDetail}>{set.weight}kg × {set.reps}次</Text>
                   </View>
-                  <IconButton
-                    icon="pencil"
-                    size={18}
-                    iconColor="#94A3B8"
-                    onPress={() => openEditDialog(exIndex, setIndex, set)}
-                    style={styles.editIcon}
-                  />
+                  <View style={styles.setActions}>
+                    <IconButton
+                      icon="pencil"
+                      size={18}
+                      iconColor="#94A3B8"
+                      onPress={() => openEditDialog(exIndex, setIndex, set)}
+                      style={styles.editIcon}
+                    />
+                    <IconButton
+                      icon="close"
+                      size={18}
+                      iconColor="#EF4444"
+                      onPress={() => handleDeleteSet(exIndex, setIndex)}
+                      style={styles.editIcon}
+                    />
+                  </View>
                 </View>
               ))}
+
+              <Button
+                mode="text"
+                onPress={() => handleAddSet(exIndex)}
+                textColor="#6366F1"
+                labelStyle={styles.addSetLabel}
+                icon="plus"
+                style={styles.addSetButton}
+              >
+                添加组
+              </Button>
             </Card.Content>
           </Card>
         );
       })}
+
+      {record.workoutType === 'strength' && (
+        <Button
+          mode="outlined"
+          onPress={handleAddExercise}
+          style={styles.addExerciseButton}
+          labelStyle={styles.addExerciseLabel}
+          icon="plus"
+          textColor="#6366F1"
+        >
+          添加动作
+        </Button>
+      )}
 
       {record.workoutType === 'cardio' && (
         <Card style={styles.card}>
@@ -335,6 +510,17 @@ export default function WorkoutRecordDetailScreen({ navigation, route }: any) {
           </Dialog.Actions>
         </Dialog>
       </Portal>
+
+      <ExercisePickerDialog
+        visible={pickerVisible}
+        exercises={exercises}
+        title={pickerMode === 'replace' ? '替换动作' : '添加动作'}
+        onPick={onPickExercise}
+        onClose={() => {
+          setPickerVisible(false);
+          setReplaceExerciseIndex(-1);
+        }}
+      />
     </ScrollView>
   );
 }
@@ -439,9 +625,20 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   exerciseHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 8,
   },
   exerciseTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  exerciseTitleInfo: {
+    flex: 1,
+  },
+  exerciseActions: {
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -496,6 +693,37 @@ const styles = StyleSheet.create({
   },
   editIcon: {
     margin: 0,
+  },
+  setActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  noSetsContainer: {
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  noSetsText: {
+    color: '#94A3B8',
+    fontSize: 13,
+  },
+  addSetButton: {
+    marginTop: 4,
+    alignSelf: 'flex-start',
+  },
+  addSetLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  addExerciseButton: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 12,
+    borderColor: '#C7D2FE',
+    borderStyle: 'dashed',
+  },
+  addExerciseLabel: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   cardioInfoRow: {
     flexDirection: 'row',

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Image, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, Image, Alert, ActivityIndicator } from 'react-native';
 import { Text, Card, Button, TextInput, Chip, Avatar } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
 import { useAppStore } from '../store';
 import { UserProfile } from '../types';
+import { uploadAvatar, isLocalUri, deleteOldAvatar } from '../services/avatarStorage';
 
 export default function BodyDataScreen({ navigation }: any) {
   const { userProfile, setUserProfile } = useAppStore();
@@ -11,6 +12,7 @@ export default function BodyDataScreen({ navigation }: any) {
   const avatarColors = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#3B82F6', '#14B8A6'];
 
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const [formData, setFormData] = useState({
     nickname: '',
@@ -70,29 +72,57 @@ export default function BodyDataScreen({ navigation }: any) {
     }
   };
 
-  const handleSave = () => {
-    const profile: UserProfile = {
-      id: userProfile?.id || Date.now().toString(),
-      nickname: formData.nickname.trim() || undefined,
-      avatarColor: formData.avatarColor,
-      avatarUri: avatarUri || undefined,
-      weight: parseFloat(formData.weight) || 70,
-      height: formData.height ? parseFloat(formData.height) : undefined,
-      bodyFat: formData.bodyFat ? parseFloat(formData.bodyFat) : undefined,
-      age: parseInt(formData.age) || 25,
-      gender: formData.gender,
-      trainingYears: parseFloat(formData.trainingYears) || 0,
-      proteinIntake: parseFloat(formData.proteinIntake) || 1.6,
-      sleepHours: parseFloat(formData.sleepHours) || 7,
-      muscleGainGoal: formData.muscleGainGoal ? parseFloat(formData.muscleGainGoal) : undefined,
-      dailyCalorieIntake: formData.dailyCalorieIntake ? parseFloat(formData.dailyCalorieIntake) : undefined,
-      fatLossGoal: formData.fatLossGoal ? parseFloat(formData.fatLossGoal) : undefined,
-      targetBodyFat: formData.targetBodyFat ? parseFloat(formData.targetBodyFat) : undefined,
-      createdAt: userProfile?.createdAt || Date.now(),
-      updatedAt: Date.now(),
-    };
-    setUserProfile(profile);
-    navigation.goBack();
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      let finalAvatarUri = avatarUri || undefined;
+      const oldAvatarUri = userProfile?.avatarUri;
+
+      // 如果用户新选了本地图片，上传到 Firebase Storage 拿到云端 URL
+      // 这样多设备登录时也能正确显示头像
+      if (avatarUri && isLocalUri(avatarUri)) {
+        try {
+          finalAvatarUri = await uploadAvatar(avatarUri);
+          // 上传成功后清理旧头像（不阻塞主流程）
+          if (oldAvatarUri && oldAvatarUri !== finalAvatarUri) {
+            deleteOldAvatar(oldAvatarUri).catch(() => {});
+          }
+        } catch (e: any) {
+          // 上传失败：保留本地 URI 保存到本地，等下次再同步
+          // 不阻塞用户保存其他数据
+          console.warn('头像上传失败，本次仅保存本地:', e?.message || e);
+          Alert.alert(
+            '头像未上传到云端',
+            '网络或权限问题导致本次头像未同步到云端，其他数据已保存。下次保存时会再尝试上传。\n错误：' + (e?.message || '未知'),
+          );
+        }
+      }
+
+      const profile: UserProfile = {
+        id: userProfile?.id || Date.now().toString(),
+        nickname: formData.nickname.trim() || undefined,
+        avatarColor: formData.avatarColor,
+        avatarUri: finalAvatarUri,
+        weight: parseFloat(formData.weight) || 70,
+        height: formData.height ? parseFloat(formData.height) : undefined,
+        bodyFat: formData.bodyFat ? parseFloat(formData.bodyFat) : undefined,
+        age: parseInt(formData.age) || 25,
+        gender: formData.gender,
+        trainingYears: parseFloat(formData.trainingYears) || 0,
+        proteinIntake: parseFloat(formData.proteinIntake) || 1.6,
+        sleepHours: parseFloat(formData.sleepHours) || 7,
+        muscleGainGoal: formData.muscleGainGoal ? parseFloat(formData.muscleGainGoal) : undefined,
+        dailyCalorieIntake: formData.dailyCalorieIntake ? parseFloat(formData.dailyCalorieIntake) : undefined,
+        fatLossGoal: formData.fatLossGoal ? parseFloat(formData.fatLossGoal) : undefined,
+        targetBodyFat: formData.targetBodyFat ? parseFloat(formData.targetBodyFat) : undefined,
+        createdAt: userProfile?.createdAt || Date.now(),
+        updatedAt: Date.now(),
+      };
+      setUserProfile(profile);
+      navigation.goBack();
+    } finally {
+      setSaving(false);
+    }
   };
 
   const isValid = () => {
@@ -345,13 +375,18 @@ export default function BodyDataScreen({ navigation }: any) {
       <Button
         mode="contained"
         onPress={handleSave}
-        disabled={!isValid()}
+        disabled={!isValid() || saving}
         style={styles.saveButton}
         labelStyle={styles.saveButtonLabel}
-        icon="content-save"
+        icon={saving ? undefined : 'content-save'}
       >
-        保存
+        {saving ? '保存中...' : '保存'}
       </Button>
+      {saving && (
+        <View style={styles.savingOverlay}>
+          <ActivityIndicator size="large" color="#6366F1" />
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -435,6 +470,10 @@ const styles = StyleSheet.create({
   saveButtonLabel: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  savingOverlay: {
+    marginTop: 16,
+    alignItems: 'center',
   },
   avatarPreviewRow: {
     flexDirection: 'row',
