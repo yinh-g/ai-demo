@@ -17,26 +17,30 @@ workflows:
     artifacts:
       - android/app/build/outputs/apk/release/app-release.apk
 
-  ios-workflow:
-    name: iOS Build
-    instance_type: mac_mini_m1
-    max_build_duration: 60
-    environment:
-      node: 20
-      xcode: latest
-      cocoapods: default
-    scripts:
-      - name: Install npm dependencies
-        script: npm ci
-      - name: Expo Prebuild
-        script: npx expo prebuild --platform ios --clean
-      - name: Install CocoaPods dependencies
-        script: |
-          cd ios
-          pod install --repo-update
-      - name: Build iOS release
-        script: |
-          cd ios
-          xcodebuild -workspace FitTrack.xcworkspace -scheme FitTrack -configuration Release -sdk iphoneos -derivedDataPath build
-    artifacts:
-      - ios/build/Build/Products/Release-iphoneos/*.app
+  # iOS 构建暂时禁用：需要 Apple Developer Program（付费 $99/年）才能在 Codemagic 远程签名打包
+  # 当前账号只有免费 Apple ID，只能用本地 Xcode 调试，无法在 CI 产出可分发的 IPA
+  # 未来如加入 Apple Developer Program，取消下方注释并在 Codemagic → Settings → Code signing 配置证书即可
+  #
+  # ios-workflow:
+  #   name: iOS Build
+  #   instance_type: mac_mini_m1
+  #   max_build_duration: 60
+  #   environment:
+  #     node: 20
+  #     xcode: latest
+  #     cocoapods: default
+  #   scripts:
+  #     - name: Install npm dependencies
+  #       script: npm ci
+  #     - name: Expo Prebuild
+  #       script: npx expo prebuild --platform ios --clean
+  #     - name: Install CocoaPods dependencies
+  #       script: |
+  #         cd ios
+  #         pod install --repo-update
+  #     - name: Build iOS release
+  #       script: |
+  #         cd ios
+  #         xcodebuild -workspace FitTrack.xcworkspace -scheme FitTrack -configuration Release -sdk iphoneos -derivedDataPath build
+  #   artifacts:
+  #     - ios/build/Build/Products/Release-iphoneos/*.app
