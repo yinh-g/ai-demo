@@ -15,7 +15,7 @@ export default function CreatePlanScreen({ navigation, route }: any) {
   const [showExerciseDialog, setShowExerciseDialog] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  const categories = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core'];
+  const categories = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'cardio'];
 
   const filteredExercises = selectedCategory
     ? exercises.filter(e => e.category === selectedCategory)
@@ -95,7 +95,8 @@ export default function CreatePlanScreen({ navigation, route }: any) {
     legs: '#8B5CF6',
     shoulders: '#F59E0B',
     arms: '#10B981',
-    core: '#EC4899'
+    core: '#EC4899',
+    cardio: '#06B6D4'
   };
 
   return (

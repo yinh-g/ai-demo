@@ -10,7 +10,7 @@ export interface Exercise {
   name: string;
   category: 'chest' | 'back' | 'legs' | 'shoulders' | 'arms' | 'core' | 'cardio';
   muscleGroup: string[];
-  equipment: 'barbell' | 'dumbbell' | 'machine' | 'bodyweight' | 'cable' | 'cardio_machine' | 'none';
+  equipment: 'barbell' | 'dumbbell' | 'machine' | 'bodyweight' | 'cable' | 'kettlebell' | 'cardio' | 'cardio_machine' | 'none';
   isCustom: boolean;
   createdAt: number;
 }

@@ -49,7 +49,8 @@ export default function StatsScreen({ navigation }: any) {
     legs: '腿部',
     shoulders: '肩部',
     arms: '手臂',
-    core: '核心'
+    core: '核心',
+    cardio: '有氧'
   };
 
   const categoryIcons: Record<string, string> = {
@@ -58,7 +59,8 @@ export default function StatsScreen({ navigation }: any) {
     legs: 'walk',
     shoulders: 'human',
     arms: 'arm-flex',
-    core: 'circle-slice-4'
+    core: 'circle-slice-4',
+    cardio: 'run'
   };
 
   const categoryColors: Record<string, string> = {
@@ -67,7 +69,8 @@ export default function StatsScreen({ navigation }: any) {
     legs: '#8B5CF6',
     shoulders: '#F59E0B',
     arms: '#10B981',
-    core: '#EC4899'
+    core: '#EC4899',
+    cardio: '#06B6D4'
   };
 
   const muscleDist = muscleDistribution();

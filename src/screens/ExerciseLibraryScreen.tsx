@@ -12,6 +12,7 @@ const categoryIcons: Record<string, any> = {
   shoulders: require('../../assets/icons/shoulder.png'),
   arms: require('../../assets/icons/arm.png'),
   core: require('../../assets/icons/core.png'),
+  cardio: require('../../assets/icons/chest.png'),
 };
 
 const categoryColors: Record<string, string> = {
@@ -20,7 +21,8 @@ const categoryColors: Record<string, string> = {
   legs: '#8B5CF6',
   shoulders: '#F59E0B',
   arms: '#10B981',
-  core: '#EC4899'
+  core: '#EC4899',
+  cardio: '#06B6D4'
 };
 
 export default function ExerciseLibraryScreen() {
@@ -35,7 +37,7 @@ export default function ExerciseLibraryScreen() {
     muscleGroup: ''
   });
 
-  const categories = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core'];
+  const categories = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'cardio'];
 
   const filteredExercises = exercises.filter(exercise => {
     const matchesSearch = exercise.name.toLowerCase().includes(searchQuery.toLowerCase());

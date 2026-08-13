@@ -11,6 +11,7 @@ const categoryIcons: Record<string, any> = {
   shoulders: require('../../assets/icons/shoulder.png'),
   arms: require('../../assets/icons/arm.png'),
   core: require('../../assets/icons/core.png'),
+  cardio: require('../../assets/icons/chest.png'),
 };
 
 const categoryColors: Record<string, string> = {
@@ -20,7 +21,7 @@ const categoryColors: Record<string, string> = {
   shoulders: '#F59E0B',
   arms: '#10B981',
   core: '#EC4899',
-  cardio: '#6366F1',
+  cardio: '#06B6D4',
 };
 
 interface Props {
@@ -44,7 +45,7 @@ export default function ExercisePickerDialog({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  const categories = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core'];
+  const categories = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'cardio'];
 
   const filteredExercises = useMemo(() => {
     const excludeSet = new Set(excludeIds);
