@@ -12,7 +12,7 @@ import { defaultExercises } from './src/data/defaultExercises';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { startSync } from './src/services/sync';
 import { initSupabase, isSupabaseConfigured } from './src/services/supabase';
-import { onUserChanged } from './src/services/auth';
+import { onUserChanged, getCurrentUser } from './src/services/auth';
 
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
@@ -102,25 +102,32 @@ function AppContent() {
           setFirebaseInit({ ok: false, error: '未配置' });
         }
 
-        // 2. 监听 Supabase Auth 状态变化（跨会话恢复登录态）
-        if (firebaseInit.ok || isSupabaseConfigured()) {
+        // 2. 主动从 AsyncStorage 恢复登录态
+        // 不依赖 onAuthStateChange 的初始触发（冷启动时可能延迟或不触发）
+        if (isSupabaseConfigured()) {
+          const existingUser = await getCurrentUser();
+          if (existingUser) {
+            setAuthUser(existingUser.email || existingUser.id);
+            try {
+              await startSync();
+            } catch (e) {
+              console.warn('startSync on auth restore failed:', e);
+            }
+          }
+        }
+
+        // 3. 监听后续 Auth 状态变化（登录 / 登出 / token 刷新）
+        if (isSupabaseConfigured()) {
           authUnsub = onUserChanged(async (user) => {
             if (user) {
-              // 已登录：恢复 authUser → 启动同步
               setAuthUser(user.email || user.id);
-              try {
-                await startSync();
-              } catch (e) {
-                console.warn('startSync on auth restore failed:', e);
-              }
             } else {
-              // 未登录 / 登出：清空 store 态（但保留业务数据本地）
               setAuthUser(null);
             }
           });
         }
 
-        // 3. 初始化默认动作库
+        // 4. 初始化默认动作库
         if (exercises.length === 0) {
           defaultExercises.forEach((exercise) => {
             addExercise(exercise);

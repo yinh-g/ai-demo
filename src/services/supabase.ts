@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 let supabase: SupabaseClient | null = null;
 
@@ -16,8 +17,11 @@ export function initSupabase(): SupabaseClient {
   const config = getSupabaseConfig();
   supabase = createClient(config.url, config.anonKey, {
     auth: {
+      // 关键：React Native 没有 localStorage，必须显式指定 AsyncStorage
+      // 否则 persistSession:true 会静默失败，session 不被持久化，每次重启都要重新登录
       persistSession: true,
       autoRefreshToken: true,
+      storage: AsyncStorage,
     },
   });
   return supabase;
