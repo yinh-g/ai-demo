@@ -1,10 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, Dimensions, TouchableOpacity } from 'react-native';
-import { Text, Card, Avatar, SegmentedButtons } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { Text, Card, Avatar } from 'react-native-paper';
 import { useAppStore } from '../store';
 import { Exercise, WorkoutRecord, DailyActivity } from '../types';
-
-const SCREEN_WIDTH = Dimensions.get('window').width;
 
 // ---------- 工具 ----------
 export type Range = 'week' | 'month' | 'year';
@@ -22,7 +20,6 @@ function toDateStr(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-// 按 range 生成时间桶：week=7天按日、month=30天按6天一段(5桶)、year=12个月按月
 function getBuckets(range: Range): Bucket[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -63,7 +60,6 @@ function getBuckets(range: Range): Bucket[] {
   return buckets;
 }
 
-// range 起始日期（用于过滤总数据）
 function getRangeStart(range: Range): Date {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -76,18 +72,41 @@ function getRangeStart(range: Range): Date {
   return new Date(today.getFullYear(), today.getMonth() - 11, 1);
 }
 
-// ---------- 柱状图（纯 View） ----------
-interface BarChartData { label: string; value: number; sub?: string; }
+// ---------- 自定义分段控件 ----------
+function SegmentedControl({ options, value, onChange }: {
+  options: { value: string; label: string }[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <View style={styles.segmentContainer}>
+      {options.map(opt => (
+        <TouchableOpacity
+          key={opt.value}
+          style={[styles.segmentItem, value === opt.value && styles.segmentItemActive]}
+          onPress={() => onChange(opt.value)}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.segmentText, value === opt.value && styles.segmentTextActive]}>
+            {opt.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+}
+
+// ---------- 柱状图 ----------
+interface BarChartData { label: string; value: number; }
 
 function BarChart({ data, color, unit }: { data: BarChartData[]; color: string; unit: string }) {
   const max = Math.max(...data.map(d => d.value), 1);
-  const barWidth = (SCREEN_WIDTH - 80) / data.length - 8;
 
   return (
     <View style={styles.chartWrap}>
       <View style={styles.barsRow}>
         {data.map((d, i) => {
-          const h = Math.max((d.value / max) * 140, d.value > 0 ? 6 : 0);
+          const h = Math.max((d.value / max) * 130, d.value > 0 ? 5 : 0);
           return (
             <View key={i} style={styles.barCol}>
               <Text style={styles.barValue}>{d.value > 0 ? formatNum(d.value) : ''}</Text>
@@ -95,7 +114,6 @@ function BarChart({ data, color, unit }: { data: BarChartData[]; color: string; 
                 <View style={[styles.barFill, { height: h, backgroundColor: d.value > 0 ? color : '#E2E8F0' }]} />
               </View>
               <Text style={styles.barLabel}>{d.label}</Text>
-              {d.sub ? <Text style={styles.barSub}>{d.sub}</Text> : null}
             </View>
           );
         })}
@@ -110,41 +128,31 @@ function formatNum(n: number): string {
   return n % 1 === 0 ? n.toString() : n.toFixed(1);
 }
 
-// ---------- 肌肉归一化映射 ----------
-// 动作 muscleGroup 中的各种写法归一化到标准肌肉名（功能性标签如"全身/心肺/爆发力"不映射）
+// ---------- 肌肉映射 ----------
 const MUSCLE_NORMALIZE: Record<string, string> = {
-  // 胸
   '胸大肌': '胸大肌', '胸大肌内侧': '胸大肌', '胸大肌外侧': '胸大肌',
   '胸大肌上部': '胸大肌上部', '胸大肌下部': '胸大肌下部',
-  // 三角肌
   '三角肌前束': '三角肌前束',
   '三角肌中束': '三角肌中束', '中束': '三角肌中束',
   '三角肌后束': '三角肌后束',
-  // 上臂
   '肱二头肌': '肱二头肌', '肱二头肌长头': '肱二头肌',
   '肱三头肌': '肱三头肌', '肱三头肌长头': '肱三头肌', '肱三头肌外侧头': '肱三头肌',
   '肱肌': '肱肌', '肱桡肌': '肱肌',
-  // 前臂
   '前臂': '前臂', '前臂屈肌': '前臂', '前臂伸肌': '前臂', '手部握力': '前臂',
-  // 背
   '背阔肌': '背阔肌', '背阔肌中部': '背阔肌', '大圆肌': '背阔肌',
   '斜方肌': '斜方肌', '斜方肌中下部': '斜方肌', '斜方肌下部': '斜方肌',
   '菱形肌': '菱形肌',
   '竖脊肌': '竖脊肌', '上背': '竖脊肌', '背': '竖脊肌',
-  // 核心
   '腹直肌': '腹直肌', '腹直肌下部': '腹直肌',
   '腹斜肌': '腹斜肌', '腹横肌': '腹横肌',
-  // 髋臀
   '臀大肌': '臀大肌',
   '臀中肌': '臀中肌', '臀小肌': '臀中肌',
   '髋屈肌': '髋屈肌', '内收肌': '内收肌',
-  // 腿
   '股四头肌': '股四头肌',
   '腘绳肌': '腘绳肌',
   '腓肠肌': '小腿', '比目鱼肌': '小腿', '小腿': '小腿',
 };
 
-// 标准肌肉名 → 中文标签
 const MUSCLE_LABELS: Record<string, string> = {
   '胸大肌': '胸大肌', '胸大肌上部': '胸大肌上部', '胸大肌下部': '胸大肌下部',
   '三角肌前束': '三角肌前束', '三角肌中束': '三角肌中束', '三角肌后束': '三角肌后束',
@@ -156,7 +164,7 @@ const MUSCLE_LABELS: Record<string, string> = {
   '股四头肌': '股四头肌', '腘绳肌': '腘绳肌', '小腿': '小腿',
 };
 
-// 人体分区：每个分区绑定若干标准肌肉
+// ---------- 人体分区 ----------
 interface BodyZone { key: string; label: string; muscles: string[]; }
 const FRONT_ZONES: BodyZone[] = [
   { key: 'frontDelt', label: '前束', muscles: ['三角肌前束'] },
@@ -184,37 +192,15 @@ const BACK_ZONES: BodyZone[] = [
   { key: 'calf', label: '小腿', muscles: ['小腿'] },
 ];
 
-// 强度 0~1 → 颜色（浅紫 #EDE9FE → 深紫 #6D28D9）
+// 强度 → 颜色（浅蓝 #DBEAFE → 深蓝紫 #4338CA）
 function intensityColor(t: number): string {
   const clamp = Math.max(0, Math.min(1, t));
   const lerp = (a: number, b: number) => Math.round(a + (b - a) * clamp);
-  const r = lerp(0xED, 0x6D), g = lerp(0xE9, 0x28), b = lerp(0xFE, 0xD9);
+  const r = lerp(0xDB, 0x43), g = lerp(0xEA, 0x38), b = lerp(0xFE, 0xCA);
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
-// 单个肌肉分区色块
-function Zone({
-  zone, muscleStats, maxSets, selected, onSelect,
-}: {
-  zone: BodyZone; muscleStats: Record<string, number>; maxSets: number;
-  selected: boolean; onSelect: (muscle: string) => void;
-}) {
-  const sets = zone.muscles.reduce((s, m) => s + (muscleStats[m] || 0), 0);
-  const t = maxSets > 0 ? sets / maxSets : 0;
-  const bg = sets === 0 ? '#E2E8F0' : intensityColor(t);
-  return (
-    <TouchableOpacity
-      activeOpacity={0.7}
-      onPress={() => onSelect(zone.muscles[0])}
-      style={[styles.zone, { backgroundColor: bg, borderColor: selected ? '#1E293B' : 'transparent', borderWidth: selected ? 2 : 0 }]}
-    >
-      <Text style={[styles.zoneLabel, { color: sets > 0 ? '#fff' : '#94A3B8' }]}>{zone.label}</Text>
-      {sets > 0 && <Text style={styles.zoneSets}>{sets}</Text>}
-    </TouchableOpacity>
-  );
-}
-
-// ---------- 人体肌群热力图（精细分区） ----------
+// ---------- 人体肌肉热力图（仿人体轮廓） ----------
 function BodyMap({
   muscleStats, maxSets, side, selected, onSelect,
 }: {
@@ -222,48 +208,129 @@ function BodyMap({
   side: 'front' | 'back'; selected: string | null; onSelect: (muscle: string) => void;
 }) {
   const all = [...FRONT_ZONES, ...BACK_ZONES];
-  const Z = (key: string) => {
-    const zone = all.find(x => x.key === key);
-    if (!zone) return <View style={{ width: 64 }} />;
+  const findZone = (key: string) => all.find(x => x.key === key);
+
+  // 渲染单个肌肉分区
+  const Z = (key: string, w: number, h: number) => {
+    const zone = findZone(key);
+    if (!zone) return <View style={{ width: w }} />;
+    const sets = zone.muscles.reduce((s, m) => s + (muscleStats[m] || 0), 0);
+    const t = maxSets > 0 ? sets / maxSets : 0;
+    const bg = sets === 0 ? '#E2E8F0' : intensityColor(t);
     return (
-      <Zone
-        zone={zone}
-        muscleStats={muscleStats}
-        maxSets={maxSets}
-        selected={selected === zone.muscles[0]}
-        onSelect={onSelect}
-      />
+      <TouchableOpacity
+        activeOpacity={0.65}
+        onPress={() => onSelect(zone.muscles[0])}
+        style={[
+          styles.bodyZone,
+          { width: w, height: h, backgroundColor: bg },
+          selected === zone.muscles[0] && styles.bodyZoneSelected,
+        ]}
+      >
+        <Text style={[styles.bodyZoneLabel, { color: sets > 0 ? '#fff' : '#94A3B8' }]}>{zone.label}</Text>
+        {sets > 0 && <Text style={styles.bodyZoneSets}>{sets}</Text>}
+      </TouchableOpacity>
     );
   };
-  const gap = () => <View style={{ width: 64 }} />;
+
+  const gap = (w: number) => <View style={{ width: w }} />;
 
   return (
     <View style={styles.bodyMapWrap}>
-      <View style={styles.bodyContainer}>
+      <View style={styles.bodyFigure}>
+        {/* 头部 */}
         <View style={styles.bodyHead} />
+        {/* 颈部 */}
+        <View style={styles.bodyNeck} />
 
         {side === 'front' ? (
           <>
-            <View style={styles.rowCenter}>{Z('frontDelt')}{gap()}{Z('frontDelt')}</View>
-            <View style={styles.rowCenter}>{Z('sideDelt')}{Z('chest')}{Z('sideDelt')}</View>
-            <View style={styles.rowCenter}>{Z('biceps')}{Z('rectus')}{Z('biceps')}</View>
-            <View style={styles.rowCenter}>{Z('forearmF')}{Z('oblique')}{Z('forearmF')}</View>
-            <View style={styles.rowCenter}>{Z('quad')}{Z('adductor')}{Z('quad')}</View>
-            <View style={styles.rowCenter}>{Z('shin')}{gap()}{Z('shin')}</View>
+            {/* 肩膀 — 最宽 */}
+            <View style={styles.bodyRow}>
+              {Z('frontDelt', 36, 44)}
+              {Z('chest', 52, 44)}
+              {Z('frontDelt', 36, 44)}
+            </View>
+            {/* 上臂+胸下/中束 */}
+            <View style={styles.bodyRow}>
+              {Z('biceps', 30, 40)}
+              {Z('sideDelt', 52, 40)}
+              {Z('biceps', 30, 40)}
+            </View>
+            {/* 前臂+腹直肌 */}
+            <View style={styles.bodyRow}>
+              {Z('forearmF', 26, 40)}
+              {Z('rectus', 46, 40)}
+              {Z('forearmF', 26, 40)}
+            </View>
+            {/* 前臂+腹斜肌（收窄） */}
+            <View style={styles.bodyRow}>
+              {Z('forearmF', 24, 36)}
+              {Z('oblique', 42, 36)}
+              {Z('forearmF', 24, 36)}
+            </View>
+            {/* 大腿 */}
+            <View style={styles.bodyRow}>
+              {Z('quad', 38, 44)}
+              {Z('adductor', 30, 44)}
+              {Z('quad', 38, 44)}
+            </View>
+            {/* 小腿 */}
+            <View style={styles.bodyRow}>
+              {Z('shin', 32, 40)}
+              {gap(8)}
+              {Z('shin', 32, 40)}
+            </View>
           </>
         ) : (
           <>
-            <View style={styles.rowCenter}>{Z('trap')}</View>
-            <View style={styles.rowCenter}>{Z('rearDelt')}{gap()}{Z('rearDelt')}</View>
-            <View style={styles.rowCenter}>{Z('triceps')}{Z('lat')}{Z('triceps')}</View>
-            <View style={styles.rowCenter}>{Z('forearmB')}{Z('erector')}{Z('forearmB')}</View>
-            <View style={styles.rowCenter}>{Z('glute')}{Z('gluteMed')}{Z('glute')}</View>
-            <View style={styles.rowCenter}>{Z('hamstring')}{gap()}{Z('hamstring')}</View>
-            <View style={styles.rowCenter}>{Z('calf')}{gap()}{Z('calf')}</View>
+            {/* 肩膀 — 斜方肌 */}
+            <View style={styles.bodyRow}>
+              {Z('trap', 36, 44)}
+              {Z('trap', 52, 44)}
+              {Z('trap', 36, 44)}
+            </View>
+            {/* 后束+背阔肌上部 */}
+            <View style={styles.bodyRow}>
+              {Z('rearDelt', 32, 40)}
+              {Z('lat', 50, 40)}
+              {Z('rearDelt', 32, 40)}
+            </View>
+            {/* 肱三头+背阔肌下部 */}
+            <View style={styles.bodyRow}>
+              {Z('triceps', 28, 40)}
+              {Z('lat', 48, 40)}
+              {Z('triceps', 28, 40)}
+            </View>
+            {/* 前臂+竖脊肌（收窄） */}
+            <View style={styles.bodyRow}>
+              {Z('forearmB', 24, 36)}
+              {Z('erector', 44, 36)}
+              {Z('forearmB', 24, 36)}
+            </View>
+            {/* 臀部 */}
+            <View style={styles.bodyRow}>
+              {Z('glute', 38, 40)}
+              {Z('gluteMed', 30, 40)}
+              {Z('glute', 38, 40)}
+            </View>
+            {/* 腘绳肌 */}
+            <View style={styles.bodyRow}>
+              {Z('hamstring', 36, 42)}
+              {gap(6)}
+              {Z('hamstring', 36, 42)}
+            </View>
+            {/* 小腿 */}
+            <View style={styles.bodyRow}>
+              {Z('calf', 32, 38)}
+              {gap(8)}
+              {Z('calf', 32, 38)}
+            </View>
           </>
         )}
       </View>
 
+      {/* 图例 */}
       <View style={styles.legendRow}>
         <Text style={styles.legendText}>少</Text>
         <View style={styles.legendBar}>
@@ -274,9 +341,8 @@ function BodyMap({
         <Text style={styles.legendText}>多</Text>
       </View>
       <Text style={styles.bodyHint}>
-        {side === 'front' ? '正面：前/中束 · 胸 · 肱二头 · 前臂 · 腹 · 股四头 · 小腿' : '背面：斜方 · 后束 · 背阔 · 竖脊 · 肱三头 · 臀 · 腘绳 · 小腿'}
+        {side === 'front' ? '正面图 · 点击肌肉查看详情' : '背面图 · 点击肌肉查看详情'}
       </Text>
-      <Text style={styles.bodyHintSub}>点击分区查看下方该肌肉详情</Text>
     </View>
   );
 }
@@ -307,7 +373,6 @@ function ActivityView({ dailyActivities, range }: { dailyActivities: DailyActivi
   const [metric, setMetric] = useState('steps');
   const buckets = getBuckets(range);
 
-  // 按 bucket 聚合
   const bucketAgg = useMemo(() => buckets.map(b => {
     const inRange = dailyActivities.filter((a: DailyActivity) => a.date >= b.start && a.date <= b.end);
     return {
@@ -318,9 +383,9 @@ function ActivityView({ dailyActivities, range }: { dailyActivities: DailyActivi
     };
   }), [dailyActivities, buckets]);
 
-  const stepsData: BarChartData[] = buckets.map((b, i) => ({ label: b.label, value: bucketAgg[i].steps, sub: b.sub }));
-  const calData: BarChartData[] = buckets.map((b, i) => ({ label: b.label, value: bucketAgg[i].cal, sub: b.sub }));
-  const distData: BarChartData[] = buckets.map((b, i) => ({ label: b.label, value: bucketAgg[i].dist, sub: b.sub }));
+  const stepsData: BarChartData[] = buckets.map((b, i) => ({ label: b.label, value: bucketAgg[i].steps }));
+  const calData: BarChartData[] = buckets.map((b, i) => ({ label: b.label, value: bucketAgg[i].cal }));
+  const distData: BarChartData[] = buckets.map((b, i) => ({ label: b.label, value: bucketAgg[i].dist }));
 
   const totalSteps = bucketAgg.reduce((s: number, d) => s + d.steps, 0);
   const totalCal = bucketAgg.reduce((s: number, d) => s + d.cal, 0);
@@ -332,28 +397,28 @@ function ActivityView({ dailyActivities, range }: { dailyActivities: DailyActivi
   const curUnit = metric === 'steps' ? '步' : metric === 'cal' ? 'kcal' : 'km';
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.headerRow}>
         <Avatar.Icon size={36} icon="walk" style={styles.headerIcon} color="#6366F1" />
         <Text style={styles.title}>{rangeLabels[range]}活动详情</Text>
       </View>
 
-      <View style={styles.summaryRow}>
+      <View style={styles.summaryGrid}>
         <SummaryBox label="总步数" value={totalSteps.toLocaleString()} color="#6366F1" />
-        <SummaryBox label="总消耗" value={`${totalCal} kcal`} color="#F59E0B" />
-        <SummaryBox label="总距离" value={`${totalDist.toFixed(1)} km`} color="#10B981" />
+        <SummaryBox label="总消耗" value={`${totalCal}`} unit="kcal" color="#F59E0B" />
+        <SummaryBox label="总距离" value={totalDist.toFixed(1)} unit="km" color="#10B981" />
         <SummaryBox label="活跃期" value={`${activePeriods}/${buckets.length}`} color="#EC4899" />
       </View>
 
       <Card style={styles.card}>
         <Card.Content>
-          <Text style={styles.sectionTitle}>趋势图</Text>
-          <SegmentedButtons
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>趋势图</Text>
+          </View>
+          <SegmentedControl
             value={metric}
-            onValueChange={setMetric}
-            density="small"
-            style={{ marginBottom: 16 }}
-            buttons={[
+            onChange={setMetric}
+            options={[
               { value: 'steps', label: '步数' },
               { value: 'cal', label: '卡路里' },
               { value: 'dist', label: '距离' },
@@ -365,7 +430,7 @@ function ActivityView({ dailyActivities, range }: { dailyActivities: DailyActivi
 
       <Card style={styles.card}>
         <Card.Content>
-          <Text style={styles.sectionTitle}>分期明细</Text>
+          <Text style={styles.cardTitle}>分期明细</Text>
           {buckets.map((b, i) => {
             const agg = bucketAgg[i];
             return (
@@ -373,7 +438,7 @@ function ActivityView({ dailyActivities, range }: { dailyActivities: DailyActivi
                 <Text style={styles.detailDate}>{b.sub}</Text>
                 <Text style={styles.detailVal}>
                   {agg.steps > 0
-                    ? `${agg.steps.toLocaleString()} 步 · ${agg.cal} kcal · ${agg.dist.toFixed(1)} km`
+                    ? `${agg.steps.toLocaleString()}步 · ${agg.cal}kcal · ${agg.dist.toFixed(1)}km`
                     : '无数据'}
                 </Text>
               </View>
@@ -394,10 +459,10 @@ function StatsView({ workoutRecords, range }: { workoutRecords: WorkoutRecord[];
   ), [workoutRecords, buckets]);
 
   const volData: BarChartData[] = buckets.map((b, i) => ({
-    label: b.label, value: recByBucket[i].reduce((s: number, r: WorkoutRecord) => s + r.totalVolume, 0), sub: b.sub,
+    label: b.label, value: recByBucket[i].reduce((s: number, r: WorkoutRecord) => s + r.totalVolume, 0),
   }));
   const durData: BarChartData[] = buckets.map((b, i) => ({
-    label: b.label, value: recByBucket[i].reduce((s: number, r: WorkoutRecord) => s + r.duration, 0), sub: b.sub,
+    label: b.label, value: recByBucket[i].reduce((s: number, r: WorkoutRecord) => s + r.duration, 0),
   }));
 
   const all: WorkoutRecord[] = recByBucket.flat();
@@ -408,36 +473,36 @@ function StatsView({ workoutRecords, range }: { workoutRecords: WorkoutRecord[];
   const cardioCnt = all.filter(r => r.workoutType === 'cardio').length;
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.headerRow}>
         <Avatar.Icon size={36} icon="calendar-week" style={styles.headerIcon} color="#10B981" />
         <Text style={styles.title}>{rangeLabels[range]}训练详情</Text>
       </View>
 
-      <View style={styles.summaryRow}>
+      <View style={styles.summaryGrid}>
         <SummaryBox label="训练次数" value={`${totalCnt}`} color="#10B981" />
-        <SummaryBox label="总容量" value={`${(totalVol / 1000).toFixed(1)}k`} color="#6366F1" />
-        <SummaryBox label="总时长" value={`${totalDur}分`} color="#F59E0B" />
-        <SummaryBox label="力/有氧" value={`${strengthCnt}/${cardioCnt}`} color="#8B5CF6" />
+        <SummaryBox label="总容量" value={(totalVol / 1000).toFixed(1)} unit="k kg" color="#6366F1" />
+        <SummaryBox label="总时长" value={`${totalDur}`} unit="分钟" color="#F59E0B" />
+        <SummaryBox label="力量/有氧" value={`${strengthCnt}/${cardioCnt}`} color="#8B5CF6" />
       </View>
 
       <Card style={styles.card}>
         <Card.Content>
-          <Text style={styles.sectionTitle}>训练容量趋势 (kg)</Text>
+          <Text style={styles.cardTitle}>训练容量趋势</Text>
           <BarChart data={volData} color="#6366F1" unit="kg" />
         </Card.Content>
       </Card>
 
       <Card style={styles.card}>
         <Card.Content>
-          <Text style={styles.sectionTitle}>训练时长趋势 (分钟)</Text>
+          <Text style={styles.cardTitle}>训练时长趋势</Text>
           <BarChart data={durData} color="#F59E0B" unit="分钟" />
         </Card.Content>
       </Card>
 
       <Card style={styles.card}>
         <Card.Content>
-          <Text style={styles.sectionTitle}>分期记录</Text>
+          <Text style={styles.cardTitle}>分期记录</Text>
           {buckets.map((b, i) => {
             const recs = recByBucket[i];
             return (
@@ -445,7 +510,7 @@ function StatsView({ workoutRecords, range }: { workoutRecords: WorkoutRecord[];
                 <Text style={styles.detailDate}>{b.sub}</Text>
                 <Text style={styles.detailVal}>
                   {recs.length > 0
-                    ? recs.map(r => `${r.workoutType === 'cardio' ? '有氧' : '力量'}${r.duration}分/${(r.totalVolume / 1000).toFixed(1)}k`).join(' · ')
+                    ? recs.map(r => `${r.workoutType === 'cardio' ? '有氧' : '力量'} ${r.duration}分`).join(' · ')
                     : '休息'}
                 </Text>
               </View>
@@ -457,11 +522,9 @@ function StatsView({ workoutRecords, range }: { workoutRecords: WorkoutRecord[];
   );
 }
 
-// ---------- 肌群分布（精确到肌肉） ----------
+// ---------- 肌群分布 ----------
 function MuscleDistView({
-  workoutRecords,
-  exercises,
-  range,
+  workoutRecords, exercises, range,
 }: {
   workoutRecords: WorkoutRecord[];
   exercises: Exercise[];
@@ -470,10 +533,9 @@ function MuscleDistView({
   const [side, setSide] = useState<'front' | 'back'>('front');
   const [selectedMuscle, setSelectedMuscle] = useState<string | null>(null);
 
-  // 按具体肌肉统计（一个动作命中多个肌肉时，每个肌肉都计入）
   const { muscleStats, byMuscle, totalHits, maxSets } = useMemo(() => {
-    const stats: Record<string, number> = {};                   // 肌肉 -> 组数
-    const byM: Record<string, Record<string, number>> = {};     // 肌肉 -> {动作名: 组数}
+    const stats: Record<string, number> = {};
+    const byM: Record<string, Record<string, number>> = {};
     workoutRecords.forEach((r: WorkoutRecord) => {
       if (r.status !== 'completed') return;
       r.exercises.forEach(er => {
@@ -481,7 +543,6 @@ function MuscleDistView({
         if (!ex) return;
         const sets = er.sets?.length || 0;
         if (sets === 0) return;
-        // 用 Set 去重：同一动作里若 muscleGroup 重复出现同名只算一次
         const hitMuscles = new Set<string>();
         ex.muscleGroup.forEach(raw => {
           const m = MUSCLE_NORMALIZE[raw];
@@ -501,10 +562,10 @@ function MuscleDistView({
 
   if (totalHits === 0) {
     return (
-      <ScrollView style={styles.container}>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.headerRow}>
           <Avatar.Icon size={36} icon="chart-pie" style={styles.headerIcon} color="#F59E0B" />
-          <Text style={styles.title}>{rangeLabels[range]}肌群分布详情</Text>
+          <Text style={styles.title}>{rangeLabels[range]}肌群分布</Text>
         </View>
         <View style={styles.emptyState}><Text style={styles.emptyText}>{rangeLabels[range]}暂无训练数据</Text></View>
       </ScrollView>
@@ -513,32 +574,30 @@ function MuscleDistView({
 
   const sortedMuscles = Object.entries(muscleStats as Record<string, number>).sort((a, b) => b[1] - a[1]);
   const strongest = sortedMuscles[0]!;
-  const weakest = sortedMuscles[sortedMuscles.length - 1]!;
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.headerRow}>
         <Avatar.Icon size={36} icon="chart-pie" style={styles.headerIcon} color="#F59E0B" />
-        <Text style={styles.title}>{rangeLabels[range]}肌群分布详情</Text>
+        <Text style={styles.title}>{rangeLabels[range]}肌群分布</Text>
       </View>
 
-      <View style={styles.summaryRow}>
-        <SummaryBox label="肌肉触达量" value={`${totalHits}`} color="#F59E0B" />
+      <View style={styles.summaryGrid}>
+        <SummaryBox label="总组数" value={`${totalHits}`} color="#F59E0B" />
         <SummaryBox label="涉及肌肉" value={`${sortedMuscles.length}`} color="#6366F1" />
         <SummaryBox label="最强肌肉" value={MUSCLE_LABELS[strongest[0]] || strongest[0]} color="#10B981" />
-        <SummaryBox label="最弱肌肉" value={sortedMuscles.length >= 2 ? (MUSCLE_LABELS[weakest[0]] || weakest[0]) : '-'} color="#EF4444" />
+        <SummaryBox label="最弱肌肉" value={sortedMuscles.length >= 2 ? (MUSCLE_LABELS[sortedMuscles[sortedMuscles.length - 1][0]] || '-') : '-'} color="#EF4444" />
       </View>
 
+      {/* 人体热力图 */}
       <Card style={styles.card}>
         <Card.Content>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>人体肌肉热力图</Text>
-            <SegmentedButtons
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.cardTitle}>人体肌肉热力图</Text>
+            <SegmentedControl
               value={side}
-              onValueChange={(v) => setSide(v as 'front' | 'back')}
-              density="small"
-              style={{ flex: 1, marginLeft: 12 }}
-              buttons={[
+              onChange={(v) => setSide(v as 'front' | 'back')}
+              options={[
                 { value: 'front', label: '正面' },
                 { value: 'back', label: '背面' },
               ]}
@@ -554,9 +613,10 @@ function MuscleDistView({
         </Card.Content>
       </Card>
 
+      {/* 肌肉训练量占比 */}
       <Card style={styles.card}>
         <Card.Content>
-          <Text style={styles.sectionTitle}>肌肉训练量占比</Text>
+          <Text style={styles.cardTitle}>肌肉训练量占比</Text>
           {sortedMuscles.map(([muscle, cnt]) => {
             const pct = ((cnt / totalHits) * 100).toFixed(1);
             const t = cnt / maxSets;
@@ -574,7 +634,7 @@ function MuscleDistView({
                   <Text style={styles.propName}>{MUSCLE_LABELS[muscle] || muscle}</Text>
                 </View>
                 <View style={styles.propBarTrack}>
-                  <View style={[styles.propBarFill, { width: `${pct}%`, backgroundColor: color }]} />
+                  <View style={[styles.propBarFill, { width: pct + '%' as `${number}%`, backgroundColor: color }]} />
                 </View>
                 <Text style={[styles.propPct, { color }]}>{pct}%</Text>
                 <Text style={styles.propCnt}>{cnt}组</Text>
@@ -584,9 +644,10 @@ function MuscleDistView({
         </Card.Content>
       </Card>
 
+      {/* 各肌肉代表动作 */}
       <Card style={styles.card}>
         <Card.Content>
-          <Text style={styles.sectionTitle}>各肌肉代表动作 (Top3)</Text>
+          <Text style={styles.cardTitle}>各肌肉代表动作 (Top3)</Text>
           {sortedMuscles.map(([muscle]) => {
             const acts = Object.entries(byMuscle[muscle] || {}).sort((a, b) => b[1] - a[1]).slice(0, 3);
             const t = (muscleStats[muscle] || 0) / maxSets;
@@ -615,11 +676,12 @@ function MuscleDistView({
   );
 }
 
-// ---------- 通用小组件 ----------
-function SummaryBox({ label, value, color }: { label: string; value: string; color: string }) {
+// ---------- 通用组件 ----------
+function SummaryBox({ label, value, unit, color }: { label: string; value: string; unit?: string; color: string }) {
   return (
     <View style={[styles.summaryBox, { borderTopColor: color }]}>
       <Text style={styles.summaryValue}>{value}</Text>
+      {unit && <Text style={styles.summaryUnit}>{unit}</Text>}
       <Text style={styles.summaryLabel}>{label}</Text>
     </View>
   );
@@ -627,53 +689,124 @@ function SummaryBox({ label, value, color }: { label: string; value: string; col
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC', paddingHorizontal: 16, paddingBottom: 24 },
+
+  // 头部
   headerRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 12, marginBottom: 12 },
   headerIcon: { backgroundColor: '#EEF2FF', marginRight: 12 },
   title: { fontSize: 22, fontWeight: 'bold', color: '#1E293B' },
-  card: { marginBottom: 12, borderRadius: 16, backgroundColor: '#fff', elevation: 2 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#1E293B', marginBottom: 12 },
 
-  summaryRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 },
-  summaryBox: {
-    width: '47%', marginRight: '6%', marginBottom: 8, padding: 12,
-    backgroundColor: '#fff', borderRadius: 12, borderTopWidth: 3, elevation: 1,
+  // 卡片
+  card: { marginBottom: 12, borderRadius: 14, backgroundColor: '#fff', elevation: 2 },
+  cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#1E293B', marginBottom: 12 },
+  cardHeader: { marginBottom: 4 },
+  cardHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 },
+
+  // 自定义分段控件
+  segmentContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#E2E8F0',
+    borderRadius: 10,
+    padding: 3,
+    marginBottom: 12,
   },
-  summaryValue: { fontSize: 20, fontWeight: 'bold', color: '#1E293B' },
-  summaryLabel: { fontSize: 12, color: '#64748B', marginTop: 2 },
+  segmentItem: {
+    flex: 1,
+    paddingVertical: 7,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  segmentItemActive: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  segmentText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#64748B',
+  },
+  segmentTextActive: {
+    color: '#6366F1',
+    fontWeight: '600',
+  },
+
+  // 概览网格
+  summaryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  summaryBox: {
+    width: '48%',
+    marginBottom: 8,
+    padding: 12,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderTopWidth: 3,
+    elevation: 1,
+  },
+  summaryValue: { fontSize: 22, fontWeight: 'bold', color: '#1E293B' },
+  summaryUnit: { fontSize: 12, color: '#94A3B8', marginTop: 1 },
+  summaryLabel: { fontSize: 12, color: '#64748B', marginTop: 4 },
 
   // 柱状图
   chartWrap: { alignItems: 'center', paddingVertical: 8 },
   barsRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', width: '100%' },
-  barCol: { alignItems: 'center', flex: 1, marginHorizontal: 4 },
+  barCol: { alignItems: 'center', flex: 1, marginHorizontal: 2 },
   barValue: { fontSize: 10, color: '#475569', fontWeight: '600', marginBottom: 4, height: 14 },
-  barTrack: { width: 22, height: 150, justifyContent: 'flex-end', alignItems: 'center' },
+  barTrack: { width: 20, height: 130, justifyContent: 'flex-end', alignItems: 'center' },
   barFill: { width: '100%', borderRadius: 4 },
-  barLabel: { fontSize: 12, color: '#64748B', marginTop: 6, fontWeight: '500' },
-  barSub: { fontSize: 9, color: '#94A3B8' },
+  barLabel: { fontSize: 11, color: '#64748B', marginTop: 6, fontWeight: '500' },
   chartUnit: { fontSize: 11, color: '#94A3B8', marginTop: 10 },
 
   // 明细行
-  detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  detailDate: { fontSize: 13, color: '#475569', fontWeight: '500' },
-  detailVal: { fontSize: 12, color: '#64748B' },
-
-  // 人体图（精细分区）
-  bodyMapWrap: { alignItems: 'center', paddingVertical: 12 },
-  bodyContainer: { alignItems: 'center', padding: 8 },
-  bodyHead: { width: 36, height: 36, borderRadius: 18, marginBottom: 6, backgroundColor: '#CBD5E1' },
-  rowCenter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginVertical: 3 },
-  zone: {
-    width: 64, minHeight: 38, marginHorizontal: 3, borderRadius: 8,
-    alignItems: 'center', justifyContent: 'center', paddingVertical: 4,
+  detailRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9',
   },
-  zoneLabel: { fontSize: 10, fontWeight: '600', textAlign: 'center' },
-  zoneSets: { fontSize: 11, fontWeight: 'bold', color: '#fff', marginTop: 1 },
+  detailDate: { fontSize: 13, color: '#475569', fontWeight: '500' },
+  detailVal: { fontSize: 12, color: '#64748B', flex: 1, textAlign: 'right', marginLeft: 12 },
+
+  // ── 人体热力图 ──
+  bodyMapWrap: { alignItems: 'center', paddingVertical: 8 },
+  bodyFigure: { alignItems: 'center' },
+  bodyHead: {
+    width: 34, height: 34, borderRadius: 17,
+    backgroundColor: '#CBD5E1', marginBottom: 2,
+  },
+  bodyNeck: {
+    width: 12, height: 6, borderRadius: 3,
+    backgroundColor: '#CBD5E1', marginBottom: 2,
+  },
+  bodyRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'stretch',
+    marginBottom: 2,
+  },
+  bodyZone: {
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 1.5,
+    paddingVertical: 4,
+  },
+  bodyZoneSelected: {
+    borderWidth: 2,
+    borderColor: '#1E293B',
+  },
+  bodyZoneLabel: { fontSize: 9, fontWeight: '600', textAlign: 'center' },
+  bodyZoneSets: { fontSize: 10, fontWeight: 'bold', color: '#fff', marginTop: 1 },
+
+  // 图例
   legendRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16 },
   legendText: { fontSize: 11, color: '#64748B', marginHorizontal: 6 },
   legendBar: { flexDirection: 'row', width: 120, height: 8, borderRadius: 4, overflow: 'hidden' },
   bodyHint: { fontSize: 11, color: '#94A3B8', marginTop: 6, textAlign: 'center' },
-  bodyHintSub: { fontSize: 11, color: '#6366F1', marginTop: 2 },
 
   // 比例条
   propRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderRadius: 8, paddingHorizontal: 4 },

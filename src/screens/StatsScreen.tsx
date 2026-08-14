@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
-import { Text, Card, Button, Avatar, Divider, TouchableRipple, SegmentedButtons } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { Text, Card, Button, Avatar, Divider, TouchableRipple } from 'react-native-paper';
 import { useAppStore } from '../store';
 import { rangeLabels, Range } from './StatsDetailScreen';
 
@@ -48,7 +48,7 @@ export default function StatsScreen({ navigation }: any) {
       record.exercises.forEach(exercise => {
         const ex = exercises.find(e => e.id === exercise.exerciseId);
         if (ex) {
-          distribution[ex.category] = (distribution[ex.category] || 0) + exercise.sets.length;
+          distribution[ex.category] = (distribution[ex.category] || 0) + (exercise.sets?.length || 0);
         }
       });
     });
@@ -102,16 +102,20 @@ export default function StatsScreen({ navigation }: any) {
         <Text style={styles.title}>数据统计</Text>
       </View>
 
-      <SegmentedButtons
-        value={range}
-        onValueChange={(v) => setRange(v as Range)}
-        buttons={[
-          { value: 'week', label: '周' },
-          { value: 'month', label: '月' },
-          { value: 'year', label: '年' },
-        ]}
-        style={styles.rangeSwitch}
-      />
+      <View style={styles.segmentContainer}>
+        {(['week', 'month', 'year'] as Range[]).map(r => (
+          <TouchableOpacity
+            key={r}
+            style={[styles.segmentItem, range === r && styles.segmentItemActive]}
+            onPress={() => setRange(r)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.segmentText, range === r && styles.segmentTextActive]}>
+              {rangeLabels[r]}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
       <Card style={[styles.card, styles.overviewCard]}>
         <Card.Content>
@@ -237,7 +241,7 @@ export default function StatsScreen({ navigation }: any) {
                     <Text style={styles.muscleLabel}>{categoryLabels[category] || category}</Text>
                   </View>
                   <View style={styles.barContainer}>
-                    <View style={[styles.bar, { width: `${percentage}%`, backgroundColor: color }]} />
+                    <View style={[styles.bar, { width: percentage + '%' as `${number}%`, backgroundColor: color }]} />
                   </View>
                   <Text style={[styles.musclePercent, { color }]}>{percentage}%</Text>
                 </View>
@@ -366,6 +370,36 @@ const styles = StyleSheet.create({
   },
   rangeSwitch: {
     marginBottom: 12,
+  },
+  segmentContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#E2E8F0',
+    borderRadius: 10,
+    padding: 3,
+    marginBottom: 12,
+  },
+  segmentItem: {
+    flex: 1,
+    paddingVertical: 7,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  segmentItemActive: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  segmentText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#64748B',
+  },
+  segmentTextActive: {
+    color: '#6366F1',
+    fontWeight: '600',
   },
   title: {
     fontSize: 24,
