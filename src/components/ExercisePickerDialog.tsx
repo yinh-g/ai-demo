@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { View, StyleSheet, Modal, FlatList, TouchableWithoutFeedback, Image } from 'react-native';
-import { Text, TextInput, Chip, Avatar, Button } from 'react-native-paper';
+import { View, StyleSheet, Modal, ScrollView, TouchableWithoutFeedback, Image, Pressable } from 'react-native';
+import { Text, TextInput, Chip, Avatar, IconButton } from 'react-native-paper';
 import { Exercise } from '../types';
-import { categoryLabels } from '../data/defaultExercises';
+import { categoryLabels, equipmentLabels } from '../data/defaultExercises';
 
 const categoryIcons: Record<string, any> = {
   chest: require('../../assets/icons/chest.png'),
@@ -22,6 +22,13 @@ const categoryColors: Record<string, string> = {
   arms: '#10B981',
   core: '#EC4899',
   cardio: '#06B6D4',
+};
+
+// 完整器械标签（补充 equipmentLabels 缺失的 cardio_machine / none）
+const equipmentFullLabels: Record<string, string> = {
+  ...equipmentLabels,
+  cardio_machine: '有氧器械',
+  none: '无器械',
 };
 
 interface Props {
@@ -75,14 +82,29 @@ export default function ExercisePickerDialog({
         <View style={styles.overlay}>
           <TouchableWithoutFeedback onPress={() => {}}>
             <View style={styles.container}>
+              {/* 顶部：固定高度，IconButton 与左侧图标等高对齐 */}
               <View style={styles.header}>
-                <Avatar.Icon size={32} icon="dumbbell" style={styles.headerIcon} color="#6366F1" />
-                <Text style={styles.headerTitle}>{title}</Text>
-                <Button onPress={handleClose} textColor="#64748B" labelStyle={{ fontSize: 13 }}>关闭</Button>
+                <View style={styles.headerLeft}>
+                  <View style={styles.headerIconWrap}>
+                    <Avatar.Icon size={28} icon="dumbbell" color="#6366F1" style={styles.headerIcon} />
+                  </View>
+                  <View style={styles.headerTextWrap}>
+                    <Text style={styles.headerTitle}>{title}</Text>
+                    <Text style={styles.headerSub}>共 {filteredExercises.length} 个动作可选</Text>
+                  </View>
+                </View>
+                <IconButton
+                  icon="close"
+                  size={22}
+                  iconColor="#64748B"
+                  onPress={handleClose}
+                  style={styles.closeBtn}
+                />
               </View>
 
+              {/* 搜索框 */}
               <TextInput
-                placeholder="搜索动作..."
+                placeholder="搜索动作名称..."
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 style={styles.searchInput}
@@ -90,54 +112,85 @@ export default function ExercisePickerDialog({
                 outlineColor="#E2E8F0"
                 activeOutlineColor="#6366F1"
                 left={<TextInput.Icon icon="magnify" color="#94A3B8" />}
+                right={searchQuery ? (
+                  <TextInput.Icon icon="close-circle" color="#94A3B8" onPress={() => setSearchQuery('')} />
+                ) : undefined}
               />
 
+              {/* 分类筛选：横向滚动，单行不换行 */}
               <View style={styles.filterRow}>
-                <Chip
-                  selected={selectedCategory === null}
-                  onPress={() => setSelectedCategory(null)}
-                  style={[styles.filterChip, selectedCategory === null && styles.filterChipActive]}
-                  selectedColor="#6366F1"
-                >
-                  全部
-                </Chip>
-                {categories.map((cat) => (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterScroll}>
                   <Chip
-                    key={cat}
-                    selected={selectedCategory === cat}
-                    onPress={() => setSelectedCategory(cat)}
-                    style={[styles.filterChip, selectedCategory === cat && styles.filterChipActive]}
-                    selectedColor={categoryColors[cat] || '#6366F1'}
+                    selected={selectedCategory === null}
+                    onPress={() => setSelectedCategory(null)}
+                    style={[styles.filterChip, selectedCategory === null && styles.filterChipActive]}
+                    selectedColor="#6366F1"
+                    textStyle={styles.chipText}
                   >
-                    {categoryLabels[cat]}
+                    全部
                   </Chip>
-                ))}
+                  {categories.map((cat) => (
+                    <Chip
+                      key={cat}
+                      selected={selectedCategory === cat}
+                      onPress={() => setSelectedCategory(cat)}
+                      style={[styles.filterChip, selectedCategory === cat && { backgroundColor: (categoryColors[cat] || '#6366F1') + '22' }]}
+                      selectedColor={categoryColors[cat] || '#6366F1'}
+                      textStyle={styles.chipText}
+                    >
+                      {categoryLabels[cat]}
+                    </Chip>
+                  ))}
+                </ScrollView>
               </View>
 
-              <FlatList
-                data={filteredExercises}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.list}
-                renderItem={({ item }) => (
-                  <TouchableWithoutFeedback onPress={() => handlePick(item)}>
-                    <View style={styles.exerciseItem}>
-                      {categoryIcons[item.category] && (
-                        <Image source={categoryIcons[item.category]} style={styles.categoryIcon} resizeMode="contain" />
-                      )}
-                      <View style={styles.exerciseInfo}>
-                        <Text style={styles.exerciseName}>{item.name}</Text>
-                        <Text style={styles.exerciseCategory}>{categoryLabels[item.category]}</Text>
-                      </View>
-                      <Avatar.Icon size={24} icon="plus" style={styles.addIcon} color="#6366F1" />
-                    </View>
-                  </TouchableWithoutFeedback>
-                )}
-                ListEmptyComponent={
+              {/* 动作列表 */}
+              <ScrollView style={styles.list} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
+                {filteredExercises.length === 0 ? (
                   <View style={styles.emptyContainer}>
+                    <Avatar.Icon size={48} icon="magnify-close" color="#CBD5E1" style={styles.emptyIcon} />
                     <Text style={styles.emptyText}>没有匹配的动作</Text>
+                    <Text style={styles.emptySub}>试试换个关键词或分类</Text>
                   </View>
-                }
-              />
+                ) : (
+                  filteredExercises.map((item) => {
+                    const color = categoryColors[item.category] || '#6366F1';
+                    return (
+                      <Pressable
+                        key={item.id}
+                        onPress={() => handlePick(item)}
+                        style={({ pressed }) => [styles.exerciseItem, pressed && styles.exerciseItemPressed]}
+                      >
+                        {/* 左侧分类色条 */}
+                        <View style={[styles.catBar, { backgroundColor: color }]} />
+
+                        {/* 分类图标 */}
+                        {categoryIcons[item.category] && (
+                          <View style={[styles.iconWrap, { backgroundColor: color + '18' }]}>
+                            <Image source={categoryIcons[item.category]} style={styles.categoryIcon} resizeMode="contain" />
+                          </View>
+                        )}
+
+                        <View style={styles.exerciseInfo}>
+                          <Text style={styles.exerciseName} numberOfLines={1}>{item.name}</Text>
+                          <View style={styles.tagRow}>
+                            <View style={[styles.tag, { backgroundColor: color + '18' }]}>
+                              <Text style={[styles.tagText, { color }]}>{categoryLabels[item.category]}</Text>
+                            </View>
+                            <View style={styles.tagDefault}>
+                              <Text style={styles.tagTextDefault}>{equipmentFullLabels[item.equipment] || item.equipment}</Text>
+                            </View>
+                          </View>
+                        </View>
+
+                        <View style={[styles.addBtn, { backgroundColor: color }]}>
+                          <Avatar.Icon size={22} icon="plus" color="#fff" style={{ backgroundColor: 'transparent' }} />
+                        </View>
+                      </Pressable>
+                    );
+                  })
+                )}
+              </ScrollView>
             </View>
           </TouchableWithoutFeedback>
         </View>
@@ -149,88 +202,184 @@ export default function ExercisePickerDialog({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(15,23,42,0.55)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 16,
   },
   container: {
     width: '100%',
-    maxHeight: '85%',
+    maxHeight: '88%',
     backgroundColor: '#fff',
     borderRadius: 20,
-    padding: 16,
+    padding: 14,
+    overflow: 'hidden',
   },
+  // 顶部
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    minHeight: 44,
   },
-  headerIcon: {
-    backgroundColor: '#EEF2FF',
-    marginRight: 10,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1E293B',
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
   },
+  headerIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  headerIcon: {
+    backgroundColor: 'transparent',
+  },
+  headerTextWrap: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: 'bold',
+    color: '#1E293B',
+  },
+  headerSub: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 1,
+  },
+  closeBtn: {
+    margin: 0,
+  },
+
+  // 搜索
   searchInput: {
     backgroundColor: '#fff',
     marginBottom: 10,
     fontSize: 14,
   },
+
+  // 分类筛选
   filterRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     marginBottom: 8,
   },
+  filterScroll: {
+    paddingVertical: 2,
+  paddingRight: 4,
+  },
   filterChip: {
-    margin: 3,
+    marginRight: 6,
     backgroundColor: '#F1F5F9',
+    height: 30,
   },
   filterChipActive: {
     backgroundColor: '#EEF2FF',
   },
+  chipText: {
+    fontSize: 12,
+  },
+
+  // 列表
   list: {
+    maxHeight: '100%',
+  },
+  listContent: {
     paddingBottom: 8,
   },
   exerciseItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    paddingVertical: 10,
+    paddingRight: 6,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
+  exerciseItemPressed: {
+    backgroundColor: '#F8FAFC',
+  },
+  catBar: {
+    width: 3,
+    height: 36,
+    borderRadius: 2,
+    marginRight: 8,
+  },
+  iconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
   categoryIcon: {
-    width: 24,
-    height: 24,
-    marginRight: 12,
+    width: 20,
+    height: 20,
   },
   exerciseInfo: {
     flex: 1,
   },
   exerciseName: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '600',
     color: '#1E293B',
+    marginBottom: 4,
   },
-  exerciseCategory: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  addIcon: {
-    backgroundColor: '#EEF2FF',
-  },
-  emptyContainer: {
-    paddingVertical: 32,
+  tagRow: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
+  tag: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    marginRight: 5,
+  },
+  tagText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  tagDefault: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    backgroundColor: '#F1F5F9',
+  },
+  tagTextDefault: {
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  addBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
+  },
+
+  // 空态
+  emptyContainer: {
+    paddingVertical: 48,
+    alignItems: 'center',
+  },
+  emptyIcon: {
+    backgroundColor: 'transparent',
+    marginBottom: 12,
+  },
   emptyText: {
-    color: '#94A3B8',
+    color: '#64748B',
     fontSize: 14,
+    fontWeight: '500',
+  },
+  emptySub: {
+    color: '#94A3B8',
+    fontSize: 12,
+    marginTop: 4,
   },
 });
