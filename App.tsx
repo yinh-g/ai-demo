@@ -27,6 +27,7 @@ import CardioSessionScreen from './src/screens/CardioSessionScreen';
 import PredictionScreen from './src/screens/PredictionScreen';
 import BodyDataScreen from './src/screens/BodyDataScreen';
 import WorkoutRecordDetailScreen from './src/screens/WorkoutRecordDetailScreen';
+import StatsDetailScreen from './src/screens/StatsDetailScreen';
 
 const tabIcons: Record<string, { active: string; inactive: string }> = {
   Home: { active: 'home', inactive: 'home-outline' },
@@ -186,6 +187,7 @@ function AppContent() {
               <Stack.Screen name="Prediction" component={PredictionScreen} options={{ title: '身体预测' }} />
               <Stack.Screen name="BodyData" component={BodyDataScreen} options={{ title: '身体数据' }} />
               <Stack.Screen name="WorkoutRecordDetail" component={WorkoutRecordDetailScreen} options={{ title: '训练详情' }} />
+              <Stack.Screen name="StatsDetail" component={StatsDetailScreen} options={{ title: '数据详情' }} />
             </Stack.Navigator>
           </NavigationContainer>
         </PaperProvider>

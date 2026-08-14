@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
-import { Text, Card, Button, Avatar, Divider } from 'react-native-paper';
+import { Text, Card, Button, Avatar, Divider, TouchableRipple } from 'react-native-paper';
 import { useAppStore } from '../store';
 
 export default function StatsScreen({ navigation }: any) {
@@ -123,67 +123,84 @@ export default function StatsScreen({ navigation }: any) {
 
       {/* 活动统计 */}
       <Card style={styles.card}>
-        <Card.Content>
-          <View style={styles.sectionHeader}>
-            <Avatar.Icon size={24} icon="walk" style={styles.sectionIcon} color="#6366F1" />
-            <Text style={styles.sectionTitle}>本周活动</Text>
-          </View>
-          <View style={styles.weekStats}>
-            <View style={styles.weekStat}>
-              <Text style={styles.weekNumber}>{totalWeekSteps.toLocaleString()}</Text>
-              <Text style={styles.weekLabel}>总步数</Text>
+        <TouchableRipple onPress={() => navigation.navigate('StatsDetail', { type: 'weeklyActivity' })} borderless>
+          <Card.Content>
+            <View style={styles.sectionHeader}>
+              <Avatar.Icon size={24} icon="walk" style={styles.sectionIcon} color="#6366F1" />
+              <Text style={styles.sectionTitle}>本周活动</Text>
+              <View style={styles.chevronWrap}>
+                <Avatar.Icon size={16} icon="chevron-right" style={styles.chevron} color="#94A3B8" />
+                <Text style={styles.tapHint}>查看趋势图</Text>
+              </View>
             </View>
-            <View style={styles.divider} />
-            <View style={styles.weekStat}>
-              <Text style={styles.weekNumber}>{avgDailySteps.toLocaleString()}</Text>
-              <Text style={styles.weekLabel}>日均步数</Text>
+            <View style={styles.weekStats}>
+              <View style={styles.weekStat}>
+                <Text style={styles.weekNumber}>{totalWeekSteps.toLocaleString()}</Text>
+                <Text style={styles.weekLabel}>总步数</Text>
+              </View>
+              <View style={styles.divider} />
+              <View style={styles.weekStat}>
+                <Text style={styles.weekNumber}>{avgDailySteps.toLocaleString()}</Text>
+                <Text style={styles.weekLabel}>日均步数</Text>
+              </View>
+              <View style={styles.divider} />
+              <View style={styles.weekStat}>
+                <Text style={styles.weekNumber}>{totalWeekActivityCalories}</Text>
+                <Text style={styles.weekLabel}>消耗(kcal)</Text>
+              </View>
+              <View style={styles.divider} />
+              <View style={styles.weekStat}>
+                <Text style={styles.weekNumber}>{totalWeekDistance.toFixed(1)}</Text>
+                <Text style={styles.weekLabel}>距离(km)</Text>
+              </View>
             </View>
-            <View style={styles.divider} />
-            <View style={styles.weekStat}>
-              <Text style={styles.weekNumber}>{totalWeekActivityCalories}</Text>
-              <Text style={styles.weekLabel}>消耗(kcal)</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.weekStat}>
-              <Text style={styles.weekNumber}>{totalWeekDistance.toFixed(1)}</Text>
-              <Text style={styles.weekLabel}>距离(km)</Text>
-            </View>
-          </View>
-        </Card.Content>
+          </Card.Content>
+        </TouchableRipple>
       </Card>
 
       <Card style={styles.card}>
-        <Card.Content>
-          <View style={styles.sectionHeader}>
-            <Avatar.Icon size={24} icon="calendar-week" style={styles.sectionIcon} color="#10B981" />
-            <Text style={styles.sectionTitle}>本周统计</Text>
-          </View>
-          <View style={styles.weekStats}>
-            <View style={styles.weekStat}>
-              <Text style={styles.weekNumber}>{weekData.length}</Text>
-              <Text style={styles.weekLabel}>训练次数</Text>
+        <TouchableRipple onPress={() => navigation.navigate('StatsDetail', { type: 'weeklyStats' })} borderless>
+          <Card.Content>
+            <View style={styles.sectionHeader}>
+              <Avatar.Icon size={24} icon="calendar-week" style={styles.sectionIcon} color="#10B981" />
+              <Text style={styles.sectionTitle}>本周统计</Text>
+              <View style={styles.chevronWrap}>
+                <Avatar.Icon size={16} icon="chevron-right" style={styles.chevron} color="#94A3B8" />
+                <Text style={styles.tapHint}>查看柱状图</Text>
+              </View>
             </View>
-            <View style={styles.divider} />
-            <View style={styles.weekStat}>
-              <Text style={styles.weekNumber}>{(weekVolume / 1000).toFixed(1)}k</Text>
-              <Text style={styles.weekLabel}>总容量(kg)</Text>
+            <View style={styles.weekStats}>
+              <View style={styles.weekStat}>
+                <Text style={styles.weekNumber}>{weekData.length}</Text>
+                <Text style={styles.weekLabel}>训练次数</Text>
+              </View>
+              <View style={styles.divider} />
+              <View style={styles.weekStat}>
+                <Text style={styles.weekNumber}>{(weekVolume / 1000).toFixed(1)}k</Text>
+                <Text style={styles.weekLabel}>总容量(kg)</Text>
+              </View>
+              <View style={styles.divider} />
+              <View style={styles.weekStat}>
+                <Text style={styles.weekNumber}>{weekDuration}</Text>
+                <Text style={styles.weekLabel}>总时长(分钟)</Text>
+              </View>
             </View>
-            <View style={styles.divider} />
-            <View style={styles.weekStat}>
-              <Text style={styles.weekNumber}>{weekDuration}</Text>
-              <Text style={styles.weekLabel}>总时长(分钟)</Text>
-            </View>
-          </View>
-        </Card.Content>
+          </Card.Content>
+        </TouchableRipple>
       </Card>
 
       {totalSets > 0 && (
         <Card style={styles.card}>
-          <Card.Content>
-            <View style={styles.sectionHeader}>
-              <Avatar.Icon size={24} icon="chart-pie" style={styles.sectionIcon} color="#F59E0B" />
-              <Text style={styles.sectionTitle}>肌群分布</Text>
-            </View>
+          <TouchableRipple onPress={() => navigation.navigate('StatsDetail', { type: 'muscleDistribution' })} borderless>
+            <Card.Content>
+              <View style={styles.sectionHeader}>
+                <Avatar.Icon size={24} icon="chart-pie" style={styles.sectionIcon} color="#F59E0B" />
+                <Text style={styles.sectionTitle}>肌群分布</Text>
+                <View style={styles.chevronWrap}>
+                  <Avatar.Icon size={16} icon="chevron-right" style={styles.chevron} color="#94A3B8" />
+                  <Text style={styles.tapHint}>查看热力图</Text>
+                </View>
+              </View>
             {Object.entries(muscleDist).map(([category, count]) => {
               const percentage = ((count / totalSets) * 100).toFixed(1);
               const color = categoryColors[category] || '#6366F1';
@@ -205,7 +222,8 @@ export default function StatsScreen({ navigation }: any) {
                 </View>
               );
             })}
-          </Card.Content>
+            </Card.Content>
+          </TouchableRipple>
         </Card>
       )}
 
@@ -347,6 +365,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 15,
+  },
+  chevronWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 'auto',
+  },
+  chevron: {
+    backgroundColor: 'transparent',
+  },
+  tapHint: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginLeft: 2,
   },
   sectionIcon: {
     backgroundColor: 'transparent',
