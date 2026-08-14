@@ -1,8 +1,12 @@
-import React from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, LayoutAnimation, UIManager, Platform } from 'react-native';
 import { Text, Card, Button, Avatar } from 'react-native-paper';
 import { useAppStore } from '../store';
 import { CardioActivity } from '../types';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const cardioOptions: { type: CardioActivity; label: string; icon: string; color: string }[] = [
   { type: 'running', label: '跑步', icon: 'run', color: '#10B981' },
@@ -13,7 +17,14 @@ const cardioOptions: { type: CardioActivity; label: string; icon: string; color:
 
 export default function TrainingScreen({ navigation }: any) {
   const { currentWorkout, currentCardio, workoutPlans, startCardio } = useAppStore();
+  const [expandedSection, setExpandedSection] = useState<'strength' | 'cardio' | null>('strength');
 
+  const toggleSection = (section: 'strength' | 'cardio') => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedSection(prev => prev === section ? null : section);
+  };
+
+  // ── 进行中：力量 ──
   if (currentWorkout) {
     return (
       <View style={styles.container}>
@@ -43,6 +54,7 @@ export default function TrainingScreen({ navigation }: any) {
     );
   }
 
+  // ── 进行中：有氧 ──
   if (currentCardio) {
     return (
       <View style={styles.container}>
@@ -77,6 +89,10 @@ export default function TrainingScreen({ navigation }: any) {
     navigation.navigate('CardioSession', { activity });
   };
 
+  const handleStartPlan = (planId: string) => {
+    navigation.navigate('WorkoutSession', { planId });
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -84,47 +100,49 @@ export default function TrainingScreen({ navigation }: any) {
         <Text style={styles.title}>开始训练</Text>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* 力量训练区域 */}
-        <Card style={[styles.card, styles.strengthCard]}>
-          <Card.Content>
-            <View style={styles.sectionHeader}>
-              <Avatar.Icon size={28} icon="dumbbell" style={styles.sectionIcon} color="#6366F1" />
-              <Text style={styles.sectionTitle}>力量训练</Text>
-            </View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        {/* ── 力量训练入口 ── */}
+        <TouchableOpacity
+          style={styles.entryRow}
+          onPress={() => toggleSection('strength')}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.entryIconBg, { backgroundColor: '#EEF2FF' }]}>
+            <Avatar.Icon size={28} icon="dumbbell" style={styles.entryIcon} color="#6366F1" />
+          </View>
+          <View style={styles.entryInfo}>
+            <Text style={styles.entryTitle}>力量训练</Text>
+            <Text style={styles.entrySubtitle}>
+              {workoutPlans.length > 0 ? `${workoutPlans.length} 个计划` : '创建计划开始训练'}
+            </Text>
+          </View>
+          <Avatar.Icon
+            size={20}
+            icon={expandedSection === 'strength' ? 'chevron-up' : 'chevron-right'}
+            style={styles.chevron}
+            color="#94A3B8"
+          />
+        </TouchableOpacity>
+
+        {/* ── 力量训练展开内容 ── */}
+        {expandedSection === 'strength' && (
+          <View style={styles.expandedContent}>
             {workoutPlans.length > 0 ? (
-              <>
-                <Text style={styles.sectionSubtitle}>选择计划开始训练</Text>
-                {workoutPlans.map((plan) => (
-                  <Card key={plan.id} style={styles.planCard}>
-                    <Card.Content>
-                      <View style={styles.planHeader}>
-                        <View style={styles.planIconBg}>
-                          <Avatar.Icon size={32} icon="clipboard-list" style={{ backgroundColor: 'transparent' }} color="#6366F1" />
-                        </View>
-                        <View style={styles.planInfo}>
-                          <Text style={styles.planName}>{plan.name}</Text>
-                          <View style={styles.planMeta}>
-                            <Avatar.Icon size={14} icon="dumbbell" style={styles.metaIcon} color="#94A3B8" />
-                            <Text style={styles.planDetail}>{plan.exercises.length} 个动作</Text>
-                          </View>
-                        </View>
-                      </View>
-                    </Card.Content>
-                    <Card.Actions style={styles.cardActions}>
-                      <Button
-                        mode="contained"
-                        onPress={() => navigation.navigate('WorkoutSession', { planId: plan.id })}
-                        style={styles.startButton}
-                        labelStyle={styles.startButtonLabel}
-                        icon="play"
-                      >
-                        开始训练
-                      </Button>
-                    </Card.Actions>
-                  </Card>
-                ))}
-              </>
+              workoutPlans.map((plan) => (
+                <TouchableOpacity
+                  key={plan.id}
+                  style={styles.planItem}
+                  onPress={() => handleStartPlan(plan.id)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.planDot, { backgroundColor: '#6366F1' }]} />
+                  <View style={styles.planItemInfo}>
+                    <Text style={styles.planItemName}>{plan.name}</Text>
+                    <Text style={styles.planItemMeta}>{plan.exercises.length} 个动作</Text>
+                  </View>
+                  <Avatar.Icon size={20} icon="play" style={styles.playIcon} color="#6366F1" />
+                </TouchableOpacity>
+              ))
             ) : (
               <View style={styles.emptySection}>
                 <Text style={styles.emptyText}>还没有创建训练计划</Text>
@@ -140,26 +158,43 @@ export default function TrainingScreen({ navigation }: any) {
                 </Button>
               </View>
             )}
-          </Card.Content>
-        </Card>
+          </View>
+        )}
 
-        {/* 有氧训练区域 */}
-        <Card style={[styles.card, styles.cardioCard]}>
-          <Card.Content>
-            <View style={styles.sectionHeader}>
-              <Avatar.Icon size={28} icon="heart-pulse" style={styles.sectionIcon} color="#10B981" />
-              <Text style={styles.sectionTitle}>有氧训练</Text>
-            </View>
-            <Text style={styles.sectionSubtitle}>快速开始有氧运动</Text>
+        {/* ── 有氧训练入口 ── */}
+        <TouchableOpacity
+          style={[styles.entryRow, { marginTop: 12 }]}
+          onPress={() => toggleSection('cardio')}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.entryIconBg, { backgroundColor: '#ECFDF5' }]}>
+            <Avatar.Icon size={28} icon="heart-pulse" style={styles.entryIcon} color="#10B981" />
+          </View>
+          <View style={styles.entryInfo}>
+            <Text style={styles.entryTitle}>有氧训练</Text>
+            <Text style={styles.entrySubtitle}>跑步 · 骑行 · 划船 · 爬坡</Text>
+          </View>
+          <Avatar.Icon
+            size={20}
+            icon={expandedSection === 'cardio' ? 'chevron-up' : 'chevron-right'}
+            style={styles.chevron}
+            color="#94A3B8"
+          />
+        </TouchableOpacity>
+
+        {/* ── 有氧训练展开内容 ── */}
+        {expandedSection === 'cardio' && (
+          <View style={styles.expandedContent}>
             <View style={styles.cardioGrid}>
               {cardioOptions.map((option) => (
                 <TouchableOpacity
                   key={option.type}
                   style={[styles.cardioItem, { backgroundColor: option.color + '15' }]}
                   onPress={() => handleStartCardio(option.type)}
+                  activeOpacity={0.7}
                 >
                   <Avatar.Icon
-                    size={40}
+                    size={32}
                     icon={option.icon}
                     style={[styles.cardioIcon, { backgroundColor: option.color + '25' }]}
                     color={option.color}
@@ -168,8 +203,8 @@ export default function TrainingScreen({ navigation }: any) {
                 </TouchableOpacity>
               ))}
             </View>
-          </Card.Content>
-        </Card>
+          </View>
+        )}
       </ScrollView>
     </View>
   );
@@ -197,101 +232,93 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1E293B',
   },
-  card: {
-    borderRadius: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+  scrollContent: {
+    paddingBottom: 16,
   },
-  strengthCard: {
-    backgroundColor: '#fff',
-  },
-  cardioCard: {
-    backgroundColor: '#fff',
-  },
-  activeCard: {
-    backgroundColor: '#6366F1',
-  },
-  sectionHeader: {
+  // ── 入口行 ──
+  entryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  sectionIcon: {
+  entryIconBg: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  entryIcon: {
     backgroundColor: 'transparent',
-    marginRight: 8,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  entryInfo: {
+    flex: 1,
+  },
+  entryTitle: {
+    fontSize: 16,
+    fontWeight: '600',
     color: '#1E293B',
   },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: '#64748B',
-    marginBottom: 12,
+  entrySubtitle: {
+    fontSize: 13,
+    color: '#94A3B8',
+    marginTop: 2,
   },
-  planCard: {
-    marginBottom: 10,
-    borderRadius: 14,
-    backgroundColor: '#F8FAFC',
+  chevron: {
+    backgroundColor: 'transparent',
+  },
+  // ── 展开内容 ──
+  expandedContent: {
+    marginTop: 8,
+    paddingHorizontal: 4,
+  },
+  // ── 计划列表项 ──
+  planItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
     shadowRadius: 4,
     elevation: 1,
   },
-  planHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  planIconBg: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#EEF2FF',
-    justifyContent: 'center',
-    alignItems: 'center',
+  planDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     marginRight: 12,
   },
-  planInfo: {
+  planItemInfo: {
     flex: 1,
   },
-  planName: {
-    fontSize: 16,
-    fontWeight: 'bold',
+  planItemName: {
+    fontSize: 15,
+    fontWeight: '500',
     color: '#1E293B',
-    marginBottom: 2,
   },
-  planMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  metaIcon: {
-    backgroundColor: 'transparent',
-    marginRight: 2,
-  },
-  planDetail: {
-    fontSize: 13,
+  planItemMeta: {
+    fontSize: 12,
     color: '#94A3B8',
+    marginTop: 2,
   },
-  cardActions: {
-    justifyContent: 'flex-end',
-    paddingHorizontal: 12,
-    paddingBottom: 10,
+  playIcon: {
+    backgroundColor: '#EEF2FF',
   },
-  startButton: {
-    borderRadius: 10,
-    backgroundColor: '#6366F1',
-    paddingHorizontal: 8,
-  },
-  startButtonLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
+  // ── 空状态 ──
   emptySection: {
     alignItems: 'center',
     paddingVertical: 20,
@@ -310,6 +337,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  // ── 有氧网格 ──
   cardioGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -329,6 +357,19 @@ const styles = StyleSheet.create({
   cardioLabel: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  // ── 进行中训练 ──
+  card: {
+    borderRadius: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  activeCard: {
+    backgroundColor: '#6366F1',
   },
   activeHeader: {
     alignItems: 'center',

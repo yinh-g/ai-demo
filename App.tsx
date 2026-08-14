@@ -12,7 +12,7 @@ import { defaultExercises } from './src/data/defaultExercises';
 import ErrorBoundary from './src/components/ErrorBoundary';
 import { startSync } from './src/services/sync';
 import { initSupabase, isSupabaseConfigured } from './src/services/supabase';
-import { onUserChanged, getCurrentUser } from './src/services/auth';
+import { onUserChanged, getCurrentUser, getSavedEmail } from './src/services/auth';
 
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
@@ -87,38 +87,45 @@ function MainTabs() {
 }
 
 function AppContent() {
-  const { exercises, addExercise, authUser, setAuthUser, isGuest } = useAppStore();
+  const { authUser, setAuthUser, isGuest } = useAppStore();
   const [isReady, setIsReady] = useState(false);
-  const [firebaseInit, setFirebaseInit] = useState<{ ok: boolean; error?: string }>({ ok: false });
 
   useEffect(() => {
     let authUnsub: (() => void) | null = null;
     (async () => {
       try {
-        // 1. 初始化 Supabase（未配置时也继续往下走，LoginScreen 会显示配置提示）
+        // 1. 初始化 Supabase（同步，无网络请求）
         if (isSupabaseConfigured()) {
           initSupabase();
-          setFirebaseInit({ ok: true });
-        } else {
-          setFirebaseInit({ ok: false, error: '未配置' });
         }
 
-        // 2. 主动从 AsyncStorage 恢复登录态
-        // 不依赖 onAuthStateChange 的初始触发（冷启动时可能延迟或不触发）
+        // 2. 从本地快速恢复登录态（AsyncStorage 读取，毫秒级）
+        // 不等待网络验证，先让用户看到 UI
+        const savedEmail = await getSavedEmail();
+        if (savedEmail) {
+          setAuthUser(savedEmail);
+        }
+
+        // 3. 批量初始化默认动作库（单次写入，避免 235 次逐条 addExercise 触发渲染）
+        if (useAppStore.getState().exercises.length === 0) {
+          useAppStore.setState({ exercises: defaultExercises });
+        }
+
+        // 4. 立即就绪 —— 不等待网络请求
+        setIsReady(true);
+
+        // 5. 后台异步：验证 session + 云同步（不阻塞 UI）
         if (isSupabaseConfigured()) {
           const existingUser = await getCurrentUser();
           if (existingUser) {
             setAuthUser(existingUser.email || existingUser.id);
-            try {
-              await startSync();
-            } catch (e) {
-              console.warn('startSync on auth restore failed:', e);
-            }
+            startSync().catch((e) => console.warn('startSync failed:', e));
+          } else if (savedEmail) {
+            // session 失效，清除本地登录态
+            setAuthUser(null);
           }
-        }
 
-        // 3. 监听后续 Auth 状态变化（登录 / 登出 / token 刷新）
-        if (isSupabaseConfigured()) {
+          // 6. 监听后续 Auth 状态变化（登录 / 登出 / token 刷新）
           authUnsub = onUserChanged(async (user) => {
             if (user) {
               setAuthUser(user.email || user.id);
@@ -127,16 +134,8 @@ function AppContent() {
             }
           });
         }
-
-        // 4. 初始化默认动作库
-        if (exercises.length === 0) {
-          defaultExercises.forEach((exercise) => {
-            addExercise(exercise);
-          });
-        }
       } catch (error) {
         console.error('Init error:', error);
-      } finally {
         setIsReady(true);
       }
     })();
