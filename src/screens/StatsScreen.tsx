@@ -1,23 +1,35 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
-import { Text, Card, Button, Avatar, Divider, TouchableRipple } from 'react-native-paper';
+import { Text, Card, Button, Avatar, Divider, TouchableRipple, SegmentedButtons } from 'react-native-paper';
 import { useAppStore } from '../store';
+import { rangeLabels, Range } from './StatsDetailScreen';
+
+// range 起始时间戳（与 StatsDetailScreen 的 getRangeStart 保持一致）
+function rangeStartMs(range: Range): number {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (range === 'week') {
+    const d = new Date(today); d.setDate(d.getDate() - 6); return d.getTime();
+  }
+  if (range === 'month') {
+    const d = new Date(today); d.setDate(d.getDate() - 29); return d.getTime();
+  }
+  return new Date(today.getFullYear(), today.getMonth() - 11, 1).getTime();
+}
 
 export default function StatsScreen({ navigation }: any) {
   const { workoutRecords, exercises, dailyActivities } = useAppStore();
+  const [range, setRange] = useState<Range>('week');
+  const rStart = rangeStartMs(range);
 
   const totalWorkouts = workoutRecords.filter(r => r.status === 'completed').length;
   const totalVolume = workoutRecords.reduce((sum, r) => sum + r.totalVolume, 0);
   const totalDuration = workoutRecords.reduce((sum, r) => sum + r.duration, 0);
 
-  const getWeekData = () => {
-    const weekStart = new Date();
-    weekStart.setDate(weekStart.getDate() - 7);
-    return workoutRecords.filter(r => new Date(r.date) >= weekStart && r.status === 'completed');
-  };
-  const weekData = getWeekData();
-  const weekVolume = weekData.reduce((sum, r) => sum + r.totalVolume, 0);
-  const weekDuration = weekData.reduce((sum, r) => sum + r.duration, 0);
+  // 按 range 过滤
+  const rangeRecords = workoutRecords.filter(r => r.status === 'completed' && new Date(r.date).getTime() >= rStart);
+  const rangeVolume = rangeRecords.reduce((sum, r) => sum + r.totalVolume, 0);
+  const rangeDuration = rangeRecords.reduce((sum, r) => sum + r.duration, 0);
 
   const strengthRecords = workoutRecords.filter(r => r.workoutType === 'strength' && r.status === 'completed');
   const cardioRecords = workoutRecords.filter(r => r.workoutType === 'cardio' && r.status === 'completed');
@@ -26,13 +38,13 @@ export default function StatsScreen({ navigation }: any) {
   const totalCardioCalories = cardioRecords.reduce((sum, r) => sum + (r.totalCalories || 0), 0);
   const totalCardioDuration = cardioRecords.reduce((sum, r) => sum + r.duration, 0);
 
-  const weekCardioRecords = weekData.filter(r => r.workoutType === 'cardio');
-  const weekCardioDistance = weekCardioRecords.reduce((sum, r) => sum + (r.totalDistance || 0), 0);
-  const weekCardioCalories = weekCardioRecords.reduce((sum, r) => sum + (r.totalCalories || 0), 0);
+  const rangeCardioRecords = rangeRecords.filter(r => r.workoutType === 'cardio');
+  const rangeCardioDistance = rangeCardioRecords.reduce((sum, r) => sum + (r.totalDistance || 0), 0);
+  const rangeCardioCalories = rangeCardioRecords.reduce((sum, r) => sum + (r.totalCalories || 0), 0);
 
   const muscleDistribution = () => {
     const distribution: Record<string, number> = {};
-    workoutRecords.forEach(record => {
+    rangeRecords.forEach(record => {
       record.exercises.forEach(exercise => {
         const ex = exercises.find(e => e.id === exercise.exerciseId);
         if (ex) {
@@ -76,14 +88,12 @@ export default function StatsScreen({ navigation }: any) {
   const muscleDist = muscleDistribution();
   const totalSets = Object.values(muscleDist).reduce((a, b) => a + b, 0);
 
-  // 计算活动数据
-  const weekStart = new Date();
-  weekStart.setDate(weekStart.getDate() - 7);
-  const weekActivities = dailyActivities.filter(a => new Date(a.date) >= weekStart);
-  const totalWeekSteps = weekActivities.reduce((sum, a) => sum + a.steps, 0);
-  const totalWeekActivityCalories = weekActivities.reduce((sum, a) => sum + a.activeCalories, 0);
-  const totalWeekDistance = weekActivities.reduce((sum, a) => sum + a.distanceKm, 0);
-  const avgDailySteps = weekActivities.length > 0 ? Math.round(totalWeekSteps / weekActivities.length) : 0;
+  // 按 range 过滤活动数据
+  const rangeActivities = dailyActivities.filter(a => new Date(a.date).getTime() >= rStart);
+  const totalSteps = rangeActivities.reduce((sum, a) => sum + a.steps, 0);
+  const totalActivityCalories = rangeActivities.reduce((sum, a) => sum + a.activeCalories, 0);
+  const totalDistance = rangeActivities.reduce((sum, a) => sum + a.distanceKm, 0);
+  const avgSteps = rangeActivities.length > 0 ? Math.round(totalSteps / rangeActivities.length) : 0;
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -91,6 +101,17 @@ export default function StatsScreen({ navigation }: any) {
         <Avatar.Icon size={40} icon="chart-bar" style={styles.headerIcon} color="#6366F1" />
         <Text style={styles.title}>数据统计</Text>
       </View>
+
+      <SegmentedButtons
+        value={range}
+        onValueChange={(v) => setRange(v as Range)}
+        buttons={[
+          { value: 'week', label: '周' },
+          { value: 'month', label: '月' },
+          { value: 'year', label: '年' },
+        ]}
+        style={styles.rangeSwitch}
+      />
 
       <Card style={[styles.card, styles.overviewCard]}>
         <Card.Content>
@@ -123,11 +144,11 @@ export default function StatsScreen({ navigation }: any) {
 
       {/* 活动统计 */}
       <Card style={styles.card}>
-        <TouchableRipple onPress={() => navigation.navigate('StatsDetail', { type: 'weeklyActivity' })} borderless>
+        <TouchableRipple onPress={() => navigation.navigate('StatsDetail', { type: 'activity', range })} borderless>
           <Card.Content>
             <View style={styles.sectionHeader}>
               <Avatar.Icon size={24} icon="walk" style={styles.sectionIcon} color="#6366F1" />
-              <Text style={styles.sectionTitle}>本周活动</Text>
+              <Text style={styles.sectionTitle}>{rangeLabels[range]}活动</Text>
               <View style={styles.chevronWrap}>
                 <Avatar.Icon size={16} icon="chevron-right" style={styles.chevron} color="#94A3B8" />
                 <Text style={styles.tapHint}>查看趋势图</Text>
@@ -135,22 +156,22 @@ export default function StatsScreen({ navigation }: any) {
             </View>
             <View style={styles.weekStats}>
               <View style={styles.weekStat}>
-                <Text style={styles.weekNumber}>{totalWeekSteps.toLocaleString()}</Text>
+                <Text style={styles.weekNumber}>{totalSteps.toLocaleString()}</Text>
                 <Text style={styles.weekLabel}>总步数</Text>
               </View>
               <View style={styles.divider} />
               <View style={styles.weekStat}>
-                <Text style={styles.weekNumber}>{avgDailySteps.toLocaleString()}</Text>
+                <Text style={styles.weekNumber}>{avgSteps.toLocaleString()}</Text>
                 <Text style={styles.weekLabel}>日均步数</Text>
               </View>
               <View style={styles.divider} />
               <View style={styles.weekStat}>
-                <Text style={styles.weekNumber}>{totalWeekActivityCalories}</Text>
+                <Text style={styles.weekNumber}>{totalActivityCalories}</Text>
                 <Text style={styles.weekLabel}>消耗(kcal)</Text>
               </View>
               <View style={styles.divider} />
               <View style={styles.weekStat}>
-                <Text style={styles.weekNumber}>{totalWeekDistance.toFixed(1)}</Text>
+                <Text style={styles.weekNumber}>{totalDistance.toFixed(1)}</Text>
                 <Text style={styles.weekLabel}>距离(km)</Text>
               </View>
             </View>
@@ -159,11 +180,11 @@ export default function StatsScreen({ navigation }: any) {
       </Card>
 
       <Card style={styles.card}>
-        <TouchableRipple onPress={() => navigation.navigate('StatsDetail', { type: 'weeklyStats' })} borderless>
+        <TouchableRipple onPress={() => navigation.navigate('StatsDetail', { type: 'stats', range })} borderless>
           <Card.Content>
             <View style={styles.sectionHeader}>
               <Avatar.Icon size={24} icon="calendar-week" style={styles.sectionIcon} color="#10B981" />
-              <Text style={styles.sectionTitle}>本周统计</Text>
+              <Text style={styles.sectionTitle}>{rangeLabels[range]}统计</Text>
               <View style={styles.chevronWrap}>
                 <Avatar.Icon size={16} icon="chevron-right" style={styles.chevron} color="#94A3B8" />
                 <Text style={styles.tapHint}>查看柱状图</Text>
@@ -171,17 +192,17 @@ export default function StatsScreen({ navigation }: any) {
             </View>
             <View style={styles.weekStats}>
               <View style={styles.weekStat}>
-                <Text style={styles.weekNumber}>{weekData.length}</Text>
+                <Text style={styles.weekNumber}>{rangeRecords.length}</Text>
                 <Text style={styles.weekLabel}>训练次数</Text>
               </View>
               <View style={styles.divider} />
               <View style={styles.weekStat}>
-                <Text style={styles.weekNumber}>{(weekVolume / 1000).toFixed(1)}k</Text>
+                <Text style={styles.weekNumber}>{(rangeVolume / 1000).toFixed(1)}k</Text>
                 <Text style={styles.weekLabel}>总容量(kg)</Text>
               </View>
               <View style={styles.divider} />
               <View style={styles.weekStat}>
-                <Text style={styles.weekNumber}>{weekDuration}</Text>
+                <Text style={styles.weekNumber}>{rangeDuration}</Text>
                 <Text style={styles.weekLabel}>总时长(分钟)</Text>
               </View>
             </View>
@@ -191,7 +212,7 @@ export default function StatsScreen({ navigation }: any) {
 
       {totalSets > 0 && (
         <Card style={styles.card}>
-          <TouchableRipple onPress={() => navigation.navigate('StatsDetail', { type: 'muscleDistribution' })} borderless>
+          <TouchableRipple onPress={() => navigation.navigate('StatsDetail', { type: 'muscle', range })} borderless>
             <Card.Content>
               <View style={styles.sectionHeader}>
                 <Avatar.Icon size={24} icon="chart-pie" style={styles.sectionIcon} color="#F59E0B" />
@@ -260,18 +281,18 @@ export default function StatsScreen({ navigation }: any) {
 
             <View style={styles.weekStats}>
               <View style={styles.weekStat}>
-                <Text style={styles.weekNumber}>{weekCardioRecords.length}</Text>
-                <Text style={styles.weekLabel}>本周次数</Text>
+                <Text style={styles.weekNumber}>{rangeCardioRecords.length}</Text>
+                <Text style={styles.weekLabel}>{rangeLabels[range]}次数</Text>
               </View>
               <View style={styles.divider} />
               <View style={styles.weekStat}>
-                <Text style={styles.weekNumber}>{weekCardioDistance.toFixed(1)}</Text>
-                <Text style={styles.weekLabel}>本周距离(km)</Text>
+                <Text style={styles.weekNumber}>{rangeCardioDistance.toFixed(1)}</Text>
+                <Text style={styles.weekLabel}>{rangeLabels[range]}距离(km)</Text>
               </View>
               <View style={styles.divider} />
               <View style={styles.weekStat}>
-                <Text style={styles.weekNumber}>{weekCardioCalories}</Text>
-                <Text style={styles.weekLabel}>本周消耗(kcal)</Text>
+                <Text style={styles.weekNumber}>{rangeCardioCalories}</Text>
+                <Text style={styles.weekLabel}>{rangeLabels[range]}消耗(kcal)</Text>
               </View>
             </View>
           </Card.Content>
@@ -342,6 +363,9 @@ const styles = StyleSheet.create({
   headerIcon: {
     backgroundColor: '#EEF2FF',
     marginRight: 12,
+  },
+  rangeSwitch: {
+    marginBottom: 12,
   },
   title: {
     fontSize: 24,

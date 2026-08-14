@@ -7,20 +7,73 @@ import { Exercise, WorkoutRecord, DailyActivity } from '../types';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
 // ---------- 工具 ----------
-function getLast7Days(): string[] {
-  const days: string[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    days.push(d.toISOString().split('T')[0]);
-  }
-  return days;
+export type Range = 'week' | 'month' | 'year';
+
+export const rangeLabels: Record<Range, string> = {
+  week: '本周', month: '本月', year: '本年',
+};
+
+interface Bucket { label: string; sub: string; start: string; end: string; }
+
+function toDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
-function dayLabel(dateStr: string): string {
-  const d = new Date(dateStr);
+// 按 range 生成时间桶：week=7天按日、month=30天按6天一段(5桶)、year=12个月按月
+function getBuckets(range: Range): Bucket[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const buckets: Bucket[] = [];
   const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
-  return weekdays[d.getDay()];
+
+  if (range === 'week') {
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const ds = toDateStr(d);
+      buckets.push({ label: weekdays[d.getDay()], sub: `${d.getMonth() + 1}/${d.getDate()}`, start: ds, end: ds });
+    }
+  } else if (range === 'month') {
+    for (let i = 4; i >= 0; i--) {
+      const end = new Date(today);
+      end.setDate(end.getDate() - i * 6);
+      const start = new Date(end);
+      start.setDate(start.getDate() - 5);
+      buckets.push({
+        label: `${start.getMonth() + 1}/${start.getDate()}`,
+        sub: `${start.getMonth() + 1}/${start.getDate()}-${end.getMonth() + 1}/${end.getDate()}`,
+        start: toDateStr(start), end: toDateStr(end),
+      });
+    }
+  } else {
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const start = new Date(d.getFullYear(), d.getMonth(), 1);
+      const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+      buckets.push({
+        label: `${d.getMonth() + 1}月`,
+        sub: `${d.getFullYear()}`,
+        start: toDateStr(start), end: toDateStr(end),
+      });
+    }
+  }
+  return buckets;
+}
+
+// range 起始日期（用于过滤总数据）
+function getRangeStart(range: Range): Date {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (range === 'week') {
+    const d = new Date(today); d.setDate(d.getDate() - 6); return d;
+  }
+  if (range === 'month') {
+    const d = new Date(today); d.setDate(d.getDate() - 29); return d;
+  }
+  return new Date(today.getFullYear(), today.getMonth() - 11, 1);
 }
 
 // ---------- 柱状图（纯 View） ----------
@@ -230,38 +283,49 @@ function BodyMap({
 
 // ---------- 主页面 ----------
 export default function StatsDetailScreen({ route }: any) {
-  const type: 'weeklyActivity' | 'weeklyStats' | 'muscleDistribution' = route.params?.type;
+  const type: 'activity' | 'stats' | 'muscle' = route.params?.type;
+  const range: Range = route.params?.range || 'week';
   const { workoutRecords, exercises, dailyActivities } = useAppStore();
 
-  if (type === 'weeklyActivity') return <WeeklyActivityView dailyActivities={dailyActivities} />;
-  if (type === 'weeklyStats') return <WeeklyStatsView workoutRecords={workoutRecords} />;
-  return <MuscleDistView workoutRecords={workoutRecords} exercises={exercises} />;
+  const rangeStartMs = getRangeStart(range).getTime();
+  const rangeRecords = useMemo(
+    () => workoutRecords.filter((r: WorkoutRecord) => r.status === 'completed' && new Date(r.date).getTime() >= rangeStartMs),
+    [workoutRecords, rangeStartMs]
+  );
+  const rangeActivities = useMemo(
+    () => dailyActivities.filter((a: DailyActivity) => new Date(a.date).getTime() >= rangeStartMs),
+    [dailyActivities, rangeStartMs]
+  );
+
+  if (type === 'activity') return <ActivityView dailyActivities={rangeActivities} range={range} />;
+  if (type === 'stats') return <StatsView workoutRecords={rangeRecords} range={range} />;
+  return <MuscleDistView workoutRecords={rangeRecords} exercises={exercises} range={range} />;
 }
 
-// ---------- 本周活动 ----------
-function WeeklyActivityView({ dailyActivities }: { dailyActivities: DailyActivity[] }) {
+// ---------- 活动详情 ----------
+function ActivityView({ dailyActivities, range }: { dailyActivities: DailyActivity[]; range: Range }) {
   const [metric, setMetric] = useState('steps');
-  const days = getLast7Days();
-  const byDate = useMemo(() => {
-    const m: Record<string, DailyActivity | undefined> = {};
-    dailyActivities.forEach(a => { m[a.date] = a; });
-    return m;
-  }, [dailyActivities]);
+  const buckets = getBuckets(range);
 
-  const stepsData: BarChartData[] = days.map(d => ({
-    label: dayLabel(d), value: byDate[d]?.steps || 0, sub: d.slice(5),
-  }));
-  const calData: BarChartData[] = days.map(d => ({
-    label: dayLabel(d), value: byDate[d]?.activeCalories || 0, sub: d.slice(5),
-  }));
-  const distData: BarChartData[] = days.map(d => ({
-    label: dayLabel(d), value: byDate[d]?.distanceKm || 0, sub: d.slice(5),
-  }));
+  // 按 bucket 聚合
+  const bucketAgg = useMemo(() => buckets.map(b => {
+    const inRange = dailyActivities.filter((a: DailyActivity) => a.date >= b.start && a.date <= b.end);
+    return {
+      steps: inRange.reduce((s: number, a: DailyActivity) => s + a.steps, 0),
+      cal: inRange.reduce((s: number, a: DailyActivity) => s + a.activeCalories, 0),
+      dist: inRange.reduce((s: number, a: DailyActivity) => s + a.distanceKm, 0),
+      activeCount: inRange.filter(a => a.steps > 0).length,
+    };
+  }), [dailyActivities, buckets]);
 
-  const totalSteps = stepsData.reduce((s, d) => s + d.value, 0);
-  const totalCal = calData.reduce((s, d) => s + d.value, 0);
-  const totalDist = distData.reduce((s, d) => s + d.value, 0);
-  const activeDays = days.filter(d => (byDate[d]?.steps || 0) > 0).length;
+  const stepsData: BarChartData[] = buckets.map((b, i) => ({ label: b.label, value: bucketAgg[i].steps, sub: b.sub }));
+  const calData: BarChartData[] = buckets.map((b, i) => ({ label: b.label, value: bucketAgg[i].cal, sub: b.sub }));
+  const distData: BarChartData[] = buckets.map((b, i) => ({ label: b.label, value: bucketAgg[i].dist, sub: b.sub }));
+
+  const totalSteps = bucketAgg.reduce((s: number, d) => s + d.steps, 0);
+  const totalCal = bucketAgg.reduce((s: number, d) => s + d.cal, 0);
+  const totalDist = bucketAgg.reduce((s: number, d) => s + d.dist, 0);
+  const activePeriods = bucketAgg.filter(d => d.steps > 0).length;
 
   const cur = metric === 'steps' ? stepsData : metric === 'cal' ? calData : distData;
   const curColor = metric === 'steps' ? '#6366F1' : metric === 'cal' ? '#F59E0B' : '#10B981';
@@ -271,19 +335,19 @@ function WeeklyActivityView({ dailyActivities }: { dailyActivities: DailyActivit
     <ScrollView style={styles.container}>
       <View style={styles.headerRow}>
         <Avatar.Icon size={36} icon="walk" style={styles.headerIcon} color="#6366F1" />
-        <Text style={styles.title}>本周活动详情</Text>
+        <Text style={styles.title}>{rangeLabels[range]}活动详情</Text>
       </View>
 
       <View style={styles.summaryRow}>
         <SummaryBox label="总步数" value={totalSteps.toLocaleString()} color="#6366F1" />
         <SummaryBox label="总消耗" value={`${totalCal} kcal`} color="#F59E0B" />
         <SummaryBox label="总距离" value={`${totalDist.toFixed(1)} km`} color="#10B981" />
-        <SummaryBox label="活跃天" value={`${activeDays}/7`} color="#EC4899" />
+        <SummaryBox label="活跃期" value={`${activePeriods}/${buckets.length}`} color="#EC4899" />
       </View>
 
       <Card style={styles.card}>
         <Card.Content>
-          <Text style={styles.sectionTitle}>每日趋势</Text>
+          <Text style={styles.sectionTitle}>趋势图</Text>
           <SegmentedButtons
             value={metric}
             onValueChange={setMetric}
@@ -301,14 +365,16 @@ function WeeklyActivityView({ dailyActivities }: { dailyActivities: DailyActivit
 
       <Card style={styles.card}>
         <Card.Content>
-          <Text style={styles.sectionTitle}>每日明细</Text>
-          {days.map(d => {
-            const a = byDate[d];
+          <Text style={styles.sectionTitle}>分期明细</Text>
+          {buckets.map((b, i) => {
+            const agg = bucketAgg[i];
             return (
-              <View key={d} style={styles.detailRow}>
-                <Text style={styles.detailDate}>{d}（周{dayLabel(d)}）</Text>
+              <View key={i} style={styles.detailRow}>
+                <Text style={styles.detailDate}>{b.sub}</Text>
                 <Text style={styles.detailVal}>
-                  {a ? `${a.steps.toLocaleString()} 步 · ${a.activeCalories} kcal · ${a.distanceKm.toFixed(1)} km` : '无数据'}
+                  {agg.steps > 0
+                    ? `${agg.steps.toLocaleString()} 步 · ${agg.cal} kcal · ${agg.dist.toFixed(1)} km`
+                    : '无数据'}
                 </Text>
               </View>
             );
@@ -319,37 +385,33 @@ function WeeklyActivityView({ dailyActivities }: { dailyActivities: DailyActivit
   );
 }
 
-// ---------- 本周统计 ----------
-function WeeklyStatsView({ workoutRecords }: { workoutRecords: WorkoutRecord[] }) {
-  const days = getLast7Days();
-  const recByDate = useMemo(() => {
-    const m: Record<string, WorkoutRecord[]> = {};
-    days.forEach(d => { m[d] = []; });
-    workoutRecords.forEach(r => {
-      if (r.status === 'completed' && m[r.date]) m[r.date].push(r);
-    });
-    return m;
-  }, [workoutRecords, days]);
+// ---------- 训练统计 ----------
+function StatsView({ workoutRecords, range }: { workoutRecords: WorkoutRecord[]; range: Range }) {
+  const buckets = getBuckets(range);
 
-  const volData: BarChartData[] = days.map(d => ({
-    label: dayLabel(d), value: recByDate[d].reduce((s, r) => s + r.totalVolume, 0), sub: d.slice(5),
+  const recByBucket = useMemo(() => buckets.map(b =>
+    workoutRecords.filter((r: WorkoutRecord) => r.date >= b.start && r.date <= b.end)
+  ), [workoutRecords, buckets]);
+
+  const volData: BarChartData[] = buckets.map((b, i) => ({
+    label: b.label, value: recByBucket[i].reduce((s: number, r: WorkoutRecord) => s + r.totalVolume, 0), sub: b.sub,
   }));
-  const durData: BarChartData[] = days.map(d => ({
-    label: dayLabel(d), value: recByDate[d].reduce((s, r) => s + r.duration, 0), sub: d.slice(5),
+  const durData: BarChartData[] = buckets.map((b, i) => ({
+    label: b.label, value: recByBucket[i].reduce((s: number, r: WorkoutRecord) => s + r.duration, 0), sub: b.sub,
   }));
 
-  const allWeek = days.flatMap(d => recByDate[d]);
-  const totalVol = allWeek.reduce((s, r) => s + r.totalVolume, 0);
-  const totalDur = allWeek.reduce((s, r) => s + r.duration, 0);
-  const totalCnt = allWeek.length;
-  const strengthCnt = allWeek.filter(r => r.workoutType === 'strength').length;
-  const cardioCnt = allWeek.filter(r => r.workoutType === 'cardio').length;
+  const all: WorkoutRecord[] = recByBucket.flat();
+  const totalVol = all.reduce((s: number, r: WorkoutRecord) => s + r.totalVolume, 0);
+  const totalDur = all.reduce((s: number, r: WorkoutRecord) => s + r.duration, 0);
+  const totalCnt = all.length;
+  const strengthCnt = all.filter(r => r.workoutType === 'strength').length;
+  const cardioCnt = all.filter(r => r.workoutType === 'cardio').length;
 
   return (
     <ScrollView style={styles.container}>
       <View style={styles.headerRow}>
         <Avatar.Icon size={36} icon="calendar-week" style={styles.headerIcon} color="#10B981" />
-        <Text style={styles.title}>本周训练详情</Text>
+        <Text style={styles.title}>{rangeLabels[range]}训练详情</Text>
       </View>
 
       <View style={styles.summaryRow}>
@@ -361,30 +423,30 @@ function WeeklyStatsView({ workoutRecords }: { workoutRecords: WorkoutRecord[] }
 
       <Card style={styles.card}>
         <Card.Content>
-          <Text style={styles.sectionTitle}>每日训练容量 (kg)</Text>
+          <Text style={styles.sectionTitle}>训练容量趋势 (kg)</Text>
           <BarChart data={volData} color="#6366F1" unit="kg" />
         </Card.Content>
       </Card>
 
       <Card style={styles.card}>
         <Card.Content>
-          <Text style={styles.sectionTitle}>每日训练时长 (分钟)</Text>
+          <Text style={styles.sectionTitle}>训练时长趋势 (分钟)</Text>
           <BarChart data={durData} color="#F59E0B" unit="分钟" />
         </Card.Content>
       </Card>
 
       <Card style={styles.card}>
         <Card.Content>
-          <Text style={styles.sectionTitle}>每日记录</Text>
-          {days.map(d => {
-            const recs = recByDate[d];
+          <Text style={styles.sectionTitle}>分期记录</Text>
+          {buckets.map((b, i) => {
+            const recs = recByBucket[i];
             return (
-              <View key={d} style={styles.detailRow}>
-                <Text style={styles.detailDate}>{d}（周{dayLabel(d)}）</Text>
+              <View key={i} style={styles.detailRow}>
+                <Text style={styles.detailDate}>{b.sub}</Text>
                 <Text style={styles.detailVal}>
                   {recs.length > 0
                     ? recs.map(r => `${r.workoutType === 'cardio' ? '有氧' : '力量'}${r.duration}分/${(r.totalVolume / 1000).toFixed(1)}k`).join(' · ')
-                    : '休息日'}
+                    : '休息'}
                 </Text>
               </View>
             );
@@ -399,9 +461,11 @@ function WeeklyStatsView({ workoutRecords }: { workoutRecords: WorkoutRecord[] }
 function MuscleDistView({
   workoutRecords,
   exercises,
+  range,
 }: {
   workoutRecords: WorkoutRecord[];
   exercises: Exercise[];
+  range: Range;
 }) {
   const [side, setSide] = useState<'front' | 'back'>('front');
   const [selectedMuscle, setSelectedMuscle] = useState<string | null>(null);
@@ -410,7 +474,7 @@ function MuscleDistView({
   const { muscleStats, byMuscle, totalHits, maxSets } = useMemo(() => {
     const stats: Record<string, number> = {};                   // 肌肉 -> 组数
     const byM: Record<string, Record<string, number>> = {};     // 肌肉 -> {动作名: 组数}
-    workoutRecords.forEach(r => {
+    workoutRecords.forEach((r: WorkoutRecord) => {
       if (r.status !== 'completed') return;
       r.exercises.forEach(er => {
         const ex = exercises.find(e => e.id === er.exerciseId);
@@ -440,22 +504,22 @@ function MuscleDistView({
       <ScrollView style={styles.container}>
         <View style={styles.headerRow}>
           <Avatar.Icon size={36} icon="chart-pie" style={styles.headerIcon} color="#F59E0B" />
-          <Text style={styles.title}>肌群分布详情</Text>
+          <Text style={styles.title}>{rangeLabels[range]}肌群分布详情</Text>
         </View>
-        <View style={styles.emptyState}><Text style={styles.emptyText}>暂无训练数据</Text></View>
+        <View style={styles.emptyState}><Text style={styles.emptyText}>{rangeLabels[range]}暂无训练数据</Text></View>
       </ScrollView>
     );
   }
 
-  const sortedMuscles = Object.entries(muscleStats).sort((a, b) => b[1] - a[1]);
-  const strongest = sortedMuscles[0];
-  const weakest = sortedMuscles[sortedMuscles.length - 1];
+  const sortedMuscles = Object.entries(muscleStats as Record<string, number>).sort((a, b) => b[1] - a[1]);
+  const strongest = sortedMuscles[0]!;
+  const weakest = sortedMuscles[sortedMuscles.length - 1]!;
 
   return (
     <ScrollView style={styles.container}>
       <View style={styles.headerRow}>
         <Avatar.Icon size={36} icon="chart-pie" style={styles.headerIcon} color="#F59E0B" />
-        <Text style={styles.title}>肌群分布详情</Text>
+        <Text style={styles.title}>{rangeLabels[range]}肌群分布详情</Text>
       </View>
 
       <View style={styles.summaryRow}>
