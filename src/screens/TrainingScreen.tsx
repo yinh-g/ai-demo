@@ -13,7 +13,7 @@ const cardioOptions: { type: CardioActivity; label: string; icon: string; color:
 ];
 
 export default function TrainingScreen({ navigation }: any) {
-  const { currentWorkout, currentCardio, workoutPlans, startCardio } = useAppStore();
+  const { currentWorkout, currentCardio, workoutPlans, startCardio, cancelWorkout, cancelCardio } = useAppStore();
 
   // ── 进行中：力量 ──
   if (currentWorkout) {
@@ -30,15 +30,26 @@ export default function TrainingScreen({ navigation }: any) {
               <Text style={styles.activeTitle}>力量训练进行中</Text>
               <Text style={styles.activeText}>你有一个正在进行的力量训练</Text>
             </View>
-            <Button
-              mode="contained"
-              onPress={() => navigation.navigate('WorkoutSession')}
-              style={styles.continueButton}
-              labelStyle={styles.continueButtonLabel}
-              icon="arrow-right"
-            >
-              继续训练
-            </Button>
+            <View style={styles.activeButtons}>
+              <Button
+                mode="contained"
+                onPress={() => navigation.navigate('WorkoutSession', { planId: currentWorkout.planId })}
+                style={styles.continueButton}
+                labelStyle={styles.continueButtonLabel}
+                icon="arrow-right"
+              >
+                继续训练
+              </Button>
+              <TouchableOpacity
+                style={styles.abortButton}
+                onPress={() => {
+                  cancelWorkout();
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.abortButtonText}>放弃训练</Text>
+              </TouchableOpacity>
+            </View>
           </Card.Content>
         </Card>
       </View>
@@ -60,15 +71,26 @@ export default function TrainingScreen({ navigation }: any) {
               <Text style={styles.activeTitle}>有氧训练进行中</Text>
               <Text style={styles.activeText}>你有一个正在进行的有氧训练</Text>
             </View>
-            <Button
-              mode="contained"
-              onPress={() => navigation.navigate('CardioSession')}
-              style={styles.continueButton}
-              labelStyle={styles.continueButtonLabel}
-              icon="arrow-right"
-            >
-              继续训练
-            </Button>
+            <View style={styles.activeButtons}>
+              <Button
+                mode="contained"
+                onPress={() => navigation.navigate('CardioSession')}
+                style={styles.continueButton}
+                labelStyle={styles.continueButtonLabel}
+                icon="arrow-right"
+              >
+                继续训练
+              </Button>
+              <TouchableOpacity
+                style={styles.abortButton}
+                onPress={() => {
+                  cancelCardio();
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.abortButtonText}>放弃训练</Text>
+              </TouchableOpacity>
+            </View>
           </Card.Content>
         </Card>
       </View>
@@ -305,10 +327,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 12,
     marginTop: 8,
+    flex: 1,
   },
   continueButtonLabel: {
     color: theme.colors.primary,
     fontSize: 16,
     fontWeight: '600',
+  },
+  activeButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 8,
+  },
+  abortButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  abortButtonText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

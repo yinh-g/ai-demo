@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, ScrollView, Vibration, Pressable } from 'react-native';
+import { View, StyleSheet, ScrollView, Vibration, Pressable, TouchableOpacity } from 'react-native';
 import { Text, Card, Button, TextInput, Portal, Dialog, ProgressBar, Avatar } from 'react-native-paper';
 import { useAppStore } from '../store';
 import { ExerciseRecord, SetRecord, PlanExercise } from '../types';
@@ -16,7 +16,7 @@ export default function WorkoutSessionScreen({ navigation, route }: any) {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [weight, setWeight] = useState('');
   const [reps, setReps] = useState('');
-  const startTimeRef = useRef<number>(Date.now());
+  const startTimeRef = useRef<number>(currentWorkout?.startTime || Date.now());
   const restTimerRef = useRef<NodeJS.Timeout | null>(null);
   const elapsedTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -26,15 +26,28 @@ export default function WorkoutSessionScreen({ navigation, route }: any) {
   const [pickerMode, setPickerMode] = useState<'add' | 'replace'>('add');
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
 
-  const effectivePlanId = selectedPlanId || planId;
+  // 优先使用用户选择的计划，其次路由参数，最后回退到进行中训练的计划
+  const effectivePlanId = selectedPlanId || planId || currentWorkout?.planId;
   const plan = effectivePlanId ? workoutPlans.find(p => p.id === effectivePlanId) : null;
 
-  // 初始化 sessionExercises（仅在 plan 存在且未初始化时）
+  // 初始化 sessionExercises：优先从计划加载，计划不存在时从 currentWorkout 已记录的动作恢复
   useEffect(() => {
-    if (plan && sessionExercises.length === 0) {
+    if (sessionExercises.length > 0) return;
+    if (plan) {
       setSessionExercises(plan.exercises);
+    } else if (currentWorkout && currentWorkout.exercises.length > 0) {
+      // 计划被删除但训练进行中：从已记录的动作恢复可编辑列表
+      const recovered: PlanExercise[] = currentWorkout.exercises.map((er, idx) => ({
+        exerciseId: er.exerciseId,
+        sets: 3,
+        reps: 10,
+        weight: 0,
+        restTime: 90,
+        order: idx,
+      }));
+      setSessionExercises(recovered);
     }
-  }, [plan]);
+  }, [plan, currentWorkout]);
 
   const currentPlanExercise = sessionExercises[currentExerciseIndex];
   const currentExercise = currentPlanExercise ? exercises.find(e => e.id === currentPlanExercise.exerciseId) : null;
@@ -149,8 +162,7 @@ export default function WorkoutSessionScreen({ navigation, route }: any) {
     if (plan && currentExerciseIndex < sessionExercises.length - 1) {
       setCurrentExerciseIndex(prev => prev + 1);
     } else {
-      endWorkout();
-      navigation.goBack();
+      handleFinish();
     }
   };
 
@@ -160,9 +172,21 @@ export default function WorkoutSessionScreen({ navigation, route }: any) {
     }
   };
 
-  const handleCancel = () => {
+  // 完成训练：保存记录并返回
+  const handleFinish = () => {
     endWorkout();
     navigation.goBack();
+  };
+
+  // 放弃训练：标记为取消并返回
+  const handleAbort = () => {
+    cancelWorkout();
+    navigation.goBack();
+  };
+
+  // 返回训练页（保持训练进行中）
+  const handleBack = () => {
+    navigation.navigate('Main', { screen: 'Training' });
   };
 
   // 临时添加动作到当前训练（不修改原计划）
@@ -218,7 +242,8 @@ export default function WorkoutSessionScreen({ navigation, route }: any) {
   const currentExerciseRecord = currentWorkout?.exercises.find(e => e.exerciseId === currentExercise?.id);
   const completedSets = currentExerciseRecord?.sets || [];
 
-  if (!plan) {
+  // 仅在没有进行中训练且没有计划时显示空状态
+  if (!plan && !currentWorkout) {
     return (
       <View style={styles.container}>
         <View style={styles.emptyContainer}>
@@ -286,13 +311,23 @@ export default function WorkoutSessionScreen({ navigation, route }: any) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <View style={styles.timerContainer}>
-          <Avatar.Icon size={28} icon="timer" style={styles.timerIcon} color="#6366F1" />
-          <Text style={styles.timer}>{formatTime(elapsedTime)}</Text>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
+            <Avatar.Icon size={28} icon="arrow-left" style={styles.backIcon} color="#64748B" />
+          </TouchableOpacity>
+          <View style={styles.timerContainer}>
+            <Avatar.Icon size={28} icon="timer" style={styles.timerIcon} color="#6366F1" />
+            <Text style={styles.timer}>{formatTime(elapsedTime)}</Text>
+          </View>
         </View>
-        <Button mode="outlined" textColor="#EF4444" onPress={handleCancel} style={styles.endButton} labelStyle={{ fontSize: 13 }}>
-          结束训练
-        </Button>
+        <View style={styles.headerRight}>
+          <TouchableOpacity onPress={handleAbort} style={styles.abortHeaderBtn}>
+            <Text style={styles.abortHeaderBtnText}>放弃</Text>
+          </TouchableOpacity>
+          <Button mode="contained" onPress={handleFinish} style={styles.endButton} labelStyle={{ fontSize: 13 }}>
+            完成
+          </Button>
+        </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -488,6 +523,31 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  backBtn: {
+    padding: 4,
+  },
+  backIcon: {
+    backgroundColor: '#F1F5F9',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  abortHeaderBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  abortHeaderBtnText: {
+    color: '#EF4444',
+    fontSize: 14,
+    fontWeight: '500',
+  },
   timerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -503,7 +563,8 @@ const styles = StyleSheet.create({
   },
   endButton: {
     borderRadius: 10,
-    borderColor: '#EF4444',
+    backgroundColor: '#10B981',
+    paddingVertical: 2,
   },
   content: {
     flex: 1,
