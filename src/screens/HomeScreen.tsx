@@ -1,20 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, useWindowDimensions } from 'react-native';
-import { Text, Card, Button, Divider, Avatar, ProgressBar, TextInput, Portal, Dialog } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, Alert, useWindowDimensions, TouchableOpacity } from 'react-native';
+import { Text, Card, Button, Avatar, TextInput, Portal, Dialog } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Pedometer } from 'expo-sensors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAppStore } from '../store';
+import { theme, cardStyle, pagePadding } from '../theme';
+
+const STEP_GOAL = 10000;
 
 export default function HomeScreen({ navigation }: any) {
-  const { workoutPlans, workoutRecords, dailyActivities, setDailyActivity, getTodayActivity } = useAppStore();
+  const { userProfile, workoutRecords, dailyActivities, setDailyActivity, getTodayActivity } = useAppStore();
   const todayActivity = getTodayActivity();
 
   const [showActivityDialog, setShowActivityDialog] = useState(false);
   const [activityInput, setActivityInput] = useState({ steps: '', calories: '', distance: '' });
   const [isPedometerAvailable, setIsPedometerAvailable] = useState<boolean | null>(null);
 
-  // 自动同步计步器数据
   useEffect(() => {
     let subscription: any;
     let isMounted = true;
@@ -29,7 +31,6 @@ export default function HomeScreen({ navigation }: any) {
           const now = new Date();
           const today = now.toISOString().split('T')[0];
 
-          // 获取今日步数（从0点开始）
           const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
           const result = await Pedometer.getStepCountAsync(startOfDay, now);
 
@@ -46,10 +47,8 @@ export default function HomeScreen({ navigation }: any) {
             });
           }
 
-          // 保存本次打开时间
           await AsyncStorage.setItem('lastAppOpenTime', now.toISOString());
 
-          // 监听实时步数变化
           subscription = Pedometer.watchStepCount(result => {
             if (!isMounted) return;
             const today = new Date().toISOString().split('T')[0];
@@ -104,267 +103,264 @@ export default function HomeScreen({ navigation }: any) {
     setActivityInput({ steps: '', calories: '', distance: '' });
   };
 
-  const recentRecords = workoutRecords.slice(-3).reverse();
+  const recentRecords = workoutRecords.filter(r => r.status === 'completed').slice(-3).reverse();
 
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case 'strength': return 'dumbbell';
-      case 'cardio': return 'run';
-      default: return 'dumbbell';
-    }
+  const getGreeting = () => {
+    const h = new Date().getHours();
+    if (h < 6) return '夜深了，';
+    if (h < 12) return '早上好，';
+    if (h < 14) return '中午好，';
+    if (h < 18) return '下午好，';
+    return '晚上好，';
   };
 
-  const getActivityLabel = (type: string) => {
-    switch (type) {
-      case 'strength': return '力量训练';
-      case 'cardio': return '有氧训练';
-      default: return '训练';
-    }
+  const getDateStr = () => {
+    const d = new Date();
+    const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+    return `${d.getMonth() + 1}月${d.getDate()}日 · ${weekdays[d.getDay()]}`;
   };
+
+  const steps = todayActivity?.steps || 0;
+  const stepProgress = Math.min(steps / STEP_GOAL, 1);
+  const calories = todayActivity?.activeCalories || 0;
+  const distance = todayActivity?.distanceKm || 0;
+
+  const userName = userProfile?.nickname || '训练者';
 
   const { width } = useWindowDimensions();
   const isSmallScreen = width < 375;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-    <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-      <View style={styles.header}>
-        <Text style={[styles.headerTitle, isSmallScreen && styles.headerTitleSmall]}>FitTrack</Text>
-        <Text style={styles.headerSubtitle}>记录每一次突破</Text>
-      </View>
-
-      {/* 今日活动 */}
-      <Card style={styles.card}>
-        <Card.Content>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>今日活动</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              {isPedometerAvailable && (
-                <View style={styles.autoSyncBadge}>
-                  <Avatar.Icon size={12} icon="sync" style={{ backgroundColor: 'transparent' }} color="#10B981" />
-                  <Text style={styles.autoSyncText}>自动</Text>
-                </View>
-              )}
-              <Button
-                mode="text"
-                onPress={() => setShowActivityDialog(true)}
-                labelStyle={{ fontSize: 13, color: '#6366F1' }}
-                icon="pencil"
-                compact
-              >
-                {todayActivity ? '更新' : '记录'}
-              </Button>
-            </View>
+      <ScrollView style={[styles.scrollView, pagePadding]} showsVerticalScrollIndicator={false}>
+        {/* Header: 问候 + 日期 */}
+        <View style={styles.header}>
+          <View>
+            <Text style={[styles.greeting, isSmallScreen && styles.greetingSmall]}>
+              {getGreeting()}{userName}
+            </Text>
+            <Text style={styles.dateStr}>{getDateStr()}</Text>
           </View>
+          <TouchableOpacity
+            style={styles.headerAction}
+            onPress={() => setShowActivityDialog(true)}
+            activeOpacity={0.7}
+          >
+            <Avatar.Icon size={32} icon="plus" style={styles.headerActionIcon} color={theme.colors.primary} />
+          </TouchableOpacity>
+        </View>
 
-          {todayActivity ? (
-            <View style={styles.activityRow}>
-              <View style={styles.activityItem}>
-                <Avatar.Icon size={28} icon="walk" style={{ backgroundColor: 'transparent' }} color="#6366F1" />
-                <Text style={styles.activityValue}>{todayActivity.steps.toLocaleString()}</Text>
-                <Text style={styles.activityLabel}>步数</Text>
-              </View>
-              <View style={styles.activityDivider} />
-              <View style={styles.activityItem}>
-                <Avatar.Icon size={28} icon="fire" style={{ backgroundColor: 'transparent' }} color="#EF4444" />
-                <Text style={styles.activityValue}>{todayActivity.activeCalories}</Text>
-                <Text style={styles.activityLabel}>消耗(kcal)</Text>
-              </View>
-              <View style={styles.activityDivider} />
-              <View style={styles.activityItem}>
-                <Avatar.Icon size={28} icon="map-marker-distance" style={{ backgroundColor: 'transparent' }} color="#10B981" />
-                <Text style={styles.activityValue}>{todayActivity.distanceKm.toFixed(1)}</Text>
-                <Text style={styles.activityLabel}>距离(km)</Text>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.emptyActivity}>
-              <Text style={styles.emptyActivityText}>
-                {isPedometerAvailable
-                  ? '正在同步步数数据...'
-                  : '记录今日步数和消耗，让预测更准确'}
-              </Text>
-              {!isPedometerAvailable && (
-                <Button
-                  mode="outlined"
-                  onPress={() => setShowActivityDialog(true)}
-                  style={styles.recordActivityButton}
-                  labelStyle={{ fontSize: 13, color: '#6366F1' }}
-                  icon="plus"
-                >
-                  记录活动数据
-                </Button>
-              )}
-            </View>
-          )}
-        </Card.Content>
-      </Card>
-
-      {/* 训练计划 */}
-      <Card style={styles.card}>
-        <Card.Content>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>训练计划</Text>
-            <Button
-              mode="text"
-              onPress={() => navigation.navigate('Plans')}
-              labelStyle={{ fontSize: 13, color: '#6366F1' }}
-              icon="plus"
-              compact
-            >
-              新建
-            </Button>
-          </View>
-          
-          {workoutPlans.length > 0 ? (
-            workoutPlans.slice(0, 3).map((plan, index) => (
-              <View key={plan.id}>
-                <View style={styles.planItem}>
-                  <View style={styles.planLeft}>
-                    <Avatar.Icon size={40} icon="clipboard-list" style={styles.planIcon} color="#6366F1" />
-                    <View style={styles.planInfo}>
-                      <Text style={styles.planName}>{plan.name}</Text>
-                      <Text style={styles.planDetail}>{plan.exercises.length} 个动作</Text>
-                    </View>
+        {/* 今日进度卡 */}
+        <Card style={styles.todayCard}>
+          <Card.Content style={styles.todayCardContent}>
+            <View style={styles.todayHeader}>
+              <Text style={styles.todayTitle}>今日进度</Text>
+              <View style={styles.todayHeaderRight}>
+                {isPedometerAvailable && (
+                  <View style={styles.syncBadge}>
+                    <Avatar.Icon size={12} icon="sync" style={{ backgroundColor: 'transparent' }} color="#fff" />
+                    <Text style={styles.syncBadgeText}>自动</Text>
                   </View>
+                )}
+              </View>
+            </View>
+
+            {todayActivity ? (
+              <>
+                {/* 步数进度条 */}
+                <View style={styles.progressSection}>
+                  <View style={styles.progressHeader}>
+                    <Text style={styles.progressSteps}>
+                      {steps.toLocaleString()}
+                      <Text style={styles.progressUnit}> 步</Text>
+                    </Text>
+                    <Text style={styles.progressGoal}>
+                      目标 {STEP_GOAL.toLocaleString()} 步
+                    </Text>
+                  </View>
+                  <View style={styles.progressTrack}>
+                    <View style={[styles.progressFill, { width: `${stepProgress * 100}%` }]} />
+                  </View>
+                  <Text style={styles.progressPct}>
+                    完成 {(stepProgress * 100).toFixed(0)}%
+                    {stepProgress >= 1 && ' 🎉'}
+                  </Text>
+                </View>
+
+                {/* 卡路里 + 距离 */}
+                <View style={styles.statsRow}>
+                  <View style={styles.statItem}>
+                    <View style={[styles.statIcon, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                      <Avatar.Icon size={20} icon="fire" style={{ backgroundColor: 'transparent' }} color="#fff" />
+                    </View>
+                    <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                      {calories}
+                    </Text>
+                    <Text style={styles.statLabel}>消耗 kcal</Text>
+                  </View>
+                  <View style={styles.statDivider} />
+                  <View style={styles.statItem}>
+                    <View style={[styles.statIcon, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                      <Avatar.Icon size={20} icon="map-marker-distance" style={{ backgroundColor: 'transparent' }} color="#fff" />
+                    </View>
+                    <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                      {distance.toFixed(1)}
+                    </Text>
+                    <Text style={styles.statLabel}>公里</Text>
+                  </View>
+                </View>
+              </>
+            ) : (
+              <View style={styles.emptyToday}>
+                <Text style={styles.emptyTodayText}>
+                  {isPedometerAvailable
+                    ? '正在同步步数数据...'
+                    : '记录今日活动，追踪你的进度'}
+                </Text>
+                {!isPedometerAvailable && (
                   <Button
-                    mode="contained"
-                    onPress={() => navigation.navigate('WorkoutSession', { planId: plan.id })}
-                    style={styles.startButton}
-                    labelStyle={styles.startButtonLabel}
+                    mode="text"
+                    onPress={() => setShowActivityDialog(true)}
+                    labelStyle={{ fontSize: 14, color: '#fff', fontWeight: '600' }}
+                    icon="plus"
+                    compact
                   >
-                    开始
+                    手动记录
                   </Button>
-                </View>
-                {index < Math.min(workoutPlans.length, 3) - 1 && <Divider style={styles.divider} />}
+                )}
               </View>
-            ))
-          ) : (
-            <View style={styles.emptyState}>
-              <Avatar.Icon size={48} icon="clipboard-outline" style={styles.emptyIcon} color="#CBD5E1" />
-              <Text style={styles.noPlanText}>还没有训练计划</Text>
-              <Text style={styles.noPlanSub}>点击上方"新建"创建你的第一个计划</Text>
-            </View>
-          )}
-        </Card.Content>
-      </Card>
+            )}
+          </Card.Content>
+        </Card>
 
-      {/* 快速开始 */}
-      <Card style={styles.card}>
-        <Card.Content>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>快速开始</Text>
-          </View>
-          <View style={styles.quickActions}>
-            <Button
-              mode="contained"
-              onPress={() => navigation.navigate('Training')}
-              style={[styles.quickButton, { backgroundColor: '#6366F1' }]}
-              labelStyle={styles.quickButtonLabel}
-              icon="dumbbell"
+        {/* 开始训练 — CTA 区域 */}
+        <View style={styles.ctaSection}>
+          <Text style={styles.ctaTitle}>开始训练</Text>
+          <View style={styles.ctaButtons}>
+            <TouchableOpacity
+              style={[styles.ctaButton, styles.ctaButtonStrength]}
+              onPress={() => navigation.jumpTo('Training')}
+              activeOpacity={0.85}
             >
-              力量训练
-            </Button>
-            <Button
-              mode="contained"
-              onPress={() => navigation.navigate('CardioSession')}
-              style={[styles.quickButton, { backgroundColor: '#10B981' }]}
-              labelStyle={styles.quickButtonLabel}
-              icon="run"
+              <Avatar.Icon size={36} icon="dumbbell" style={styles.ctaIcon} color="#fff" />
+              <View style={styles.ctaTextWrap}>
+                <Text style={styles.ctaButtonTitle}>力量训练</Text>
+                <Text style={styles.ctaButtonSub}>增肌 · 塑形</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.ctaButton, styles.ctaButtonCardio]}
+              onPress={() => navigation.jumpTo('Training')}
+              activeOpacity={0.85}
             >
-              有氧训练
-            </Button>
+              <Avatar.Icon size={36} icon="run" style={styles.ctaIcon} color="#fff" />
+              <View style={styles.ctaTextWrap}>
+                <Text style={styles.ctaButtonTitle}>有氧训练</Text>
+                <Text style={styles.ctaButtonSub}>燃脂 · 心肺</Text>
+              </View>
+            </TouchableOpacity>
           </View>
-        </Card.Content>
-      </Card>
+        </View>
 
-      {/* 最近训练 */}
-      <Card style={styles.card}>
-        <Card.Content>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>最近训练</Text>
-            <Text style={styles.sectionSubtitle}>最近3次</Text>
-          </View>
-          
-          {recentRecords.length > 0 ? (
-            recentRecords.map((record, index) => (
-              <View key={record?.id || index}>
-                <View
-                  style={styles.recordItem}
-                  onTouchEnd={() => record?.id && navigation.navigate('WorkoutRecordDetail', { recordId: record.id })}
+        {/* 最近训练 */}
+        {recentRecords.length > 0 && (
+          <Card style={styles.card}>
+            <Card.Content>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>最近训练</Text>
+                <Button
+                  mode="text"
+                  onPress={() => navigation.navigate('Stats')}
+                  labelStyle={{ fontSize: 13, color: theme.colors.primary, fontWeight: '600' }}
+                  compact
                 >
-                  <View style={styles.recordLeft}>
-                    <Avatar.Icon size={40} icon="check-circle" style={styles.recordIcon} color="#10B981" />
-                    <View style={styles.recordInfo}>
-                      <Text style={styles.recordDate}>{record?.date || ''}</Text>
-                      <Text style={styles.recordVolume}>
-                        容量: {(record?.totalVolume || 0).toLocaleString()} kg
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.recordRight}>
-                    <Text style={styles.recordDuration}>{record?.duration || 0} 分钟</Text>
-                  </View>
-                </View>
-                {index < recentRecords.length - 1 && <Divider style={styles.divider} />}
+                  查看全部
+                </Button>
               </View>
-            ))
-          ) : (
-            <View style={styles.emptyState}>
-              <Avatar.Icon size={48} icon="calendar-blank" style={styles.emptyIcon} color="#CBD5E1" />
-              <Text style={styles.noRecord}>还没有训练记录</Text>
-              <Text style={styles.noRecordSub}>完成一次训练后，记录会显示在这里</Text>
-            </View>
-          )}
-        </Card.Content>
-      </Card>
 
-      {/* 活动数据弹窗 */}
-      <Portal>
-        <Dialog visible={showActivityDialog} onDismiss={() => setShowActivityDialog(false)} style={styles.dialog}>
-          <Dialog.Title style={styles.dialogTitle}>记录今日活动</Dialog.Title>
-          <Dialog.Content>
-            <TextInput
-              label="步数"
-              value={activityInput.steps}
-              onChangeText={text => setActivityInput({ ...activityInput, steps: text })}
-              keyboardType="numeric"
-              style={styles.input}
-              mode="outlined"
-              outlineColor="#E2E8F0"
-              activeOutlineColor="#6366F1"
-              left={<TextInput.Icon icon="walk" color="#94A3B8" />}
-            />
-            <TextInput
-              label="活跃消耗 (kcal)"
-              value={activityInput.calories}
-              onChangeText={text => setActivityInput({ ...activityInput, calories: text })}
-              keyboardType="numeric"
-              style={styles.input}
-              mode="outlined"
-              outlineColor="#E2E8F0"
-              activeOutlineColor="#6366F1"
-              left={<TextInput.Icon icon="fire" color="#94A3B8" />}
-            />
-            <TextInput
-              label="距离 (km)"
-              value={activityInput.distance}
-              onChangeText={text => setActivityInput({ ...activityInput, distance: text })}
-              keyboardType="numeric"
-              style={styles.input}
-              mode="outlined"
-              outlineColor="#E2E8F0"
-              activeOutlineColor="#6366F1"
-              left={<TextInput.Icon icon="map-marker-distance" color="#94A3B8" />}
-            />
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setShowActivityDialog(false)} textColor="#64748B">取消</Button>
-            <Button onPress={handleSaveActivity} mode="contained" style={{ borderRadius: 8, backgroundColor: '#6366F1' }}>保存</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
-    </ScrollView>
+              {recentRecords.map((record, index) => (
+                <View key={record?.id || index}>
+                  <TouchableOpacity
+                    style={styles.recordRow}
+                    onPress={() => record?.id && navigation.navigate('WorkoutRecordDetail', { recordId: record.id })}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.recordIcon, {
+                      backgroundColor: record?.workoutType === 'cardio' ? theme.colors.success + '20' : theme.colors.primaryLight
+                    }]}>
+                      <Avatar.Icon
+                        size={24}
+                        icon={record?.workoutType === 'cardio' ? 'run' : 'dumbbell'}
+                        style={{ backgroundColor: 'transparent' }}
+                        color={record?.workoutType === 'cardio' ? theme.colors.success : theme.colors.primary}
+                      />
+                    </View>
+                    <View style={styles.recordInfo}>
+                      <Text style={styles.recordType}>
+                        {record?.workoutType === 'cardio' ? '有氧' : '力量'}训练
+                      </Text>
+                      <Text style={styles.recordDate}>{record?.date}</Text>
+                    </View>
+                    <View style={styles.recordMeta}>
+                      <Text style={styles.recordDuration}>{record?.duration || 0}分钟</Text>
+                      {record?.totalVolume > 0 && (
+                        <Text style={styles.recordVolume}>{(record?.totalVolume || 0).toLocaleString()} kg</Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                  {index < recentRecords.length - 1 && <View style={styles.recordDivider} />}
+                </View>
+              ))}
+            </Card.Content>
+          </Card>
+        )}
+
+        {/* 活动数据弹窗 */}
+        <Portal>
+          <Dialog visible={showActivityDialog} onDismiss={() => setShowActivityDialog(false)} style={styles.dialog}>
+            <Dialog.Title style={styles.dialogTitle}>记录今日活动</Dialog.Title>
+            <Dialog.Content>
+              <TextInput
+                label="步数"
+                value={activityInput.steps}
+                onChangeText={text => setActivityInput({ ...activityInput, steps: text })}
+                keyboardType="numeric"
+                style={styles.input}
+                mode="outlined"
+                outlineColor="#E2E8F0"
+                activeOutlineColor={theme.colors.primary}
+                left={<TextInput.Icon icon="walk" color={theme.colors.textTertiary} />}
+              />
+              <TextInput
+                label="活跃消耗 (kcal)"
+                value={activityInput.calories}
+                onChangeText={text => setActivityInput({ ...activityInput, calories: text })}
+                keyboardType="numeric"
+                style={styles.input}
+                mode="outlined"
+                outlineColor="#E2E8F0"
+                activeOutlineColor={theme.colors.primary}
+                left={<TextInput.Icon icon="fire" color={theme.colors.textTertiary} />}
+              />
+              <TextInput
+                label="距离 (km)"
+                value={activityInput.distance}
+                onChangeText={text => setActivityInput({ ...activityInput, distance: text })}
+                keyboardType="numeric"
+                style={styles.input}
+                mode="outlined"
+                outlineColor="#E2E8F0"
+                activeOutlineColor={theme.colors.primary}
+                left={<TextInput.Icon icon="map-marker-distance" color={theme.colors.textTertiary} />}
+              />
+            </Dialog.Content>
+            <Dialog.Actions>
+              <Button onPress={() => setShowActivityDialog(false)} textColor={theme.colors.textSecondary}>取消</Button>
+              <Button onPress={handleSaveActivity} mode="contained" style={{ borderRadius: 8, backgroundColor: theme.colors.primary }}>保存</Button>
+            </Dialog.Actions>
+          </Dialog>
+        </Portal>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -372,235 +368,296 @@ export default function HomeScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
   },
   scrollView: {
     flex: 1,
   },
+
+  // ── Header ──
   header: {
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingTop: 8,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    paddingBottom: 4,
   },
-  headerTitle: {
-    fontSize: 24,
+  greeting: {
+    fontSize: 22,
     fontWeight: 'bold',
-    color: '#1E293B',
+    color: theme.colors.text,
   },
-  headerTitleSmall: {
-    fontSize: 20,
+  greetingSmall: {
+    fontSize: 18,
   },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#64748B',
-    marginTop: 4,
+  dateStr: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    marginTop: 2,
   },
-  card: {
-    margin: 16,
+  headerAction: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: theme.colors.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerActionIcon: {
+    backgroundColor: 'transparent',
+  },
+
+  // ── 今日进度卡 ──
+  todayCard: {
     marginTop: 12,
-    borderRadius: 16,
-    backgroundColor: '#fff',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
+    marginBottom: 12,
+    borderRadius: 20,
+    backgroundColor: theme.colors.primary,
+    elevation: 4,
+    shadowColor: theme.colors.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
   },
-  sectionHeader: {
+  todayCardContent: {
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+  },
+  todayHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
   },
-  sectionTitle: {
+  todayTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1E293B',
+    color: '#fff',
   },
-  sectionSubtitle: {
-    fontSize: 13,
-    color: '#94A3B8',
+  todayHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  planItem: {
+  syncBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 4,
+  },
+  syncBadgeText: {
+    fontSize: 11,
+    color: '#fff',
+    fontWeight: '500',
+  },
+  progressSection: {
+    marginBottom: 20,
+  },
+  progressHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
+    alignItems: 'baseline',
+    marginBottom: 8,
   },
-  planLeft: {
+  progressSteps: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  progressUnit: {
+    fontSize: 16,
+    fontWeight: '500',
+    opacity: 0.8,
+  },
+  progressGoal: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.7)',
+  },
+  progressTrack: {
+    height: 8,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 4,
+  },
+  progressPct: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 8,
+    fontWeight: '500',
+  },
+  statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
-  },
-  planIcon: {
-    backgroundColor: '#EEF2FF',
-  },
-  planInfo: {
-    marginLeft: 12,
-  },
-  planName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1E293B',
-  },
-  planDetail: {
-    fontSize: 13,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  startButton: {
-    borderRadius: 10,
-    backgroundColor: '#6366F1',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 14,
+    paddingVertical: 14,
     paddingHorizontal: 16,
   },
-  startButtonLabel: {
-    fontSize: 13,
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+    includeFontPadding: false,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: 2,
+  },
+  statDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  emptyToday: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  emptyTodayText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
+    marginBottom: 8,
+  },
+
+  // ── CTA 区域 ──
+  ctaSection: {
+    marginBottom: 12,
+  },
+  ctaTitle: {
+    fontSize: 15,
     fontWeight: '600',
+    color: theme.colors.text,
+    marginBottom: 12,
+    paddingHorizontal: 2,
   },
-  divider: {
-    marginVertical: 8,
-    backgroundColor: '#F1F5F9',
-  },
-  quickActions: {
+  ctaButtons: {
     flexDirection: 'row',
     gap: 12,
   },
-  quickButton: {
+  ctaButton: {
     flex: 1,
-    borderRadius: 12,
-    paddingVertical: 8,
+    borderRadius: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  quickButtonLabel: {
-    fontSize: 14,
-    fontWeight: '600',
+  ctaButtonStrength: {
+    backgroundColor: theme.colors.primary,
   },
-  recordItem: {
+  ctaButtonCardio: {
+    backgroundColor: theme.colors.success,
+  },
+  ctaIcon: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginRight: 12,
+  },
+  ctaTextWrap: {
+    flex: 1,
+  },
+  ctaButtonTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  ctaButtonSub: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
+  },
+
+  // ── 最近训练 ──
+  card: {
+    ...cardStyle,
+  },
+  sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 10,
+    marginBottom: 8,
   },
-  recordLeft: {
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: theme.colors.text,
+  },
+  recordRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    paddingVertical: 10,
   },
   recordIcon: {
-    backgroundColor: '#ECFDF5',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   recordInfo: {
+    flex: 1,
     marginLeft: 12,
   },
-  recordDate: {
+  recordType: {
     fontSize: 15,
-    fontWeight: '500',
-    color: '#1E293B',
+    fontWeight: '600',
+    color: theme.colors.text,
   },
-  recordVolume: {
-    fontSize: 13,
-    color: '#64748B',
+  recordDate: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
     marginTop: 2,
   },
-  recordRight: {
+  recordMeta: {
     alignItems: 'flex-end',
   },
   recordDuration: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#6366F1',
+    color: theme.colors.primary,
   },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 24,
-  },
-  emptyIcon: {
-    backgroundColor: 'transparent',
-    marginBottom: 12,
-  },
-  noPlanText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#64748B',
-  },
-  noPlanSub: {
-    fontSize: 14,
-    color: '#94A3B8',
-    marginTop: 4,
-  },
-  noRecord: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#64748B',
-  },
-  noRecordSub: {
-    fontSize: 14,
-    color: '#94A3B8',
-    marginTop: 4,
-  },
-  activityRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  activityItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  activityValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1E293B',
-    marginTop: 4,
-  },
-  activityLabel: {
-    fontSize: 11,
-    color: '#94A3B8',
+  recordVolume: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
     marginTop: 2,
   },
-  activityDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: '#F1F5F9',
+  recordDivider: {
+    height: 1,
+    backgroundColor: theme.colors.border,
+    marginLeft: 56,
   },
-  emptyActivity: {
-    alignItems: 'center',
-    paddingVertical: 16,
-  },
-  emptyActivityText: {
-    fontSize: 14,
-    color: '#94A3B8',
-    marginBottom: 12,
-  },
-  recordActivityButton: {
-    borderRadius: 8,
-    borderColor: '#6366F1',
-  },
-  autoSyncBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    marginRight: 8,
-  },
-  autoSyncText: {
-    fontSize: 11,
-    color: '#10B981',
-    marginLeft: 2,
-    fontWeight: '500',
-  },
+
+  // ── 弹窗 ──
   dialog: {
     borderRadius: 20,
   },
   dialogTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1E293B',
+    color: theme.colors.text,
   },
   input: {
     marginBottom: 10,

@@ -41,6 +41,9 @@ const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
 function MainTabs() {
+  const { currentWorkout, currentCardio } = useAppStore();
+  const hasActiveTraining = !!(currentWorkout || currentCardio);
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -49,11 +52,26 @@ function MainTabs() {
           if (!icons) return null;
           const iconName = focused ? icons.active : icons.inactive;
           return (
-            <MaterialCommunityIcons
-              name={iconName as any}
-              size={size}
-              color={color}
-            />
+            <View style={{ position: 'relative' }}>
+              <MaterialCommunityIcons
+                name={iconName as any}
+                size={size}
+                color={color}
+              />
+              {route.name === 'Training' && hasActiveTraining && (
+                <View style={{
+                  position: 'absolute',
+                  top: -2,
+                  right: -8,
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: '#EF4444',
+                  borderWidth: 1.5,
+                  borderColor: '#fff',
+                }} />
+              )}
+            </View>
           );
         },
         tabBarActiveTintColor: '#6366F1',

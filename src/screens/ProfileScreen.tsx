@@ -5,7 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAppStore } from '../store';
 import { loadMeta, LocalSyncMeta } from '../services/meta';
 import { syncNow, logout } from '../services/sync';
-import { getCurrentUser } from '../services/auth';
+import { theme, cardStyle, cardSpacing, pagePadding } from '../theme';
 
 export default function ProfileScreen({ navigation }: any) {
   const { userProfile, workoutRecords, exercises, workoutPlans, syncStatus, isGuest, setIsGuest, authUser, setAuthUser } = useAppStore();
@@ -14,6 +14,15 @@ export default function ProfileScreen({ navigation }: any) {
 
   const completedWorkouts = workoutRecords.filter(r => r.status === 'completed');
   const totalVolume = completedWorkouts.reduce((sum, r) => sum + r.totalVolume, 0);
+
+  // 本周/本月训练进度
+  const now = new Date();
+  const weekStart = new Date(now); weekStart.setDate(now.getDate() - 6); weekStart.setHours(0, 0, 0, 0);
+  const monthStart = new Date(now); monthStart.setDate(now.getDate() - 29); monthStart.setHours(0, 0, 0, 0);
+  const weekWorkouts = completedWorkouts.filter(r => new Date(r.date).getTime() >= weekStart.getTime()).length;
+  const monthWorkouts = completedWorkouts.filter(r => new Date(r.date).getTime() >= monthStart.getTime()).length;
+  const WEEKLY_GOAL = 4;
+  const MONTHLY_GOAL = 16;
 
   const refreshMeta = async () => {
     setMeta(await loadMeta());
@@ -104,113 +113,130 @@ export default function ProfileScreen({ navigation }: any) {
   };
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* 用户信息区域 - 紧凑设计 */}
-      <View style={styles.userSection}>
-        {userProfile ? (
-          <View style={styles.userRow}>
-            {userProfile.avatarUri ? (
-              <Image source={{ uri: userProfile.avatarUri }} style={styles.avatarImage} />
-            ) : (
-              <View style={[styles.avatarCustom, { backgroundColor: userProfile.avatarColor || '#6366F1' }]}>
-                <Text style={styles.avatarLetter}>
-                  {(userProfile.nickname || getGenderLabel(userProfile.gender)).charAt(0).toUpperCase()}
+    <ScrollView style={[styles.container, pagePadding]} showsVerticalScrollIndicator={false}>
+      {/* 用户信息卡片 */}
+      <Card style={[styles.card, styles.userCard]}>
+        <Card.Content>
+          {userProfile ? (
+            <View style={styles.userRow}>
+              {userProfile.avatarUri ? (
+                <Image source={{ uri: userProfile.avatarUri }} style={styles.avatarImage} />
+              ) : (
+                <View style={[styles.avatarCustom, { backgroundColor: userProfile.avatarColor || theme.colors.primary }]}>
+                  <Text style={styles.avatarLetter}>
+                    {(userProfile.nickname || getGenderLabel(userProfile.gender)).charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.userMeta}>
+                <Text style={styles.userMainInfo}>
+                  {userProfile.nickname || '训练者'}
+                </Text>
+                <Text style={styles.userSubInfo}>
+                  {getGenderLabel(userProfile.gender)} · {userProfile.age}岁 · {userProfile.weight}kg · 训练{userProfile.trainingYears}年
                 </Text>
               </View>
-            )}
-            <View style={styles.userMeta}>
-              <Text style={styles.userMainInfo}>
-                {userProfile.nickname || '训练者'}
-              </Text>
-              <Text style={styles.userSubInfo}>
-                {getGenderLabel(userProfile.gender)} · {userProfile.age}岁 · {userProfile.weight}kg · 训练{userProfile.trainingYears}年
-              </Text>
+              <Button
+                mode="text"
+                onPress={() => navigation.navigate('BodyData')}
+                labelStyle={styles.editText}
+                icon="pencil"
+                compact
+              >
+                编辑
+              </Button>
             </View>
-            <Button
-              mode="text"
-              onPress={() => navigation.navigate('BodyData')}
-              labelStyle={styles.editText}
-              icon="pencil"
-              compact
-            >
-              编辑
-            </Button>
-          </View>
-        ) : (
-          <View style={styles.userRow}>
-            <Avatar.Icon size={56} icon="account-off" style={styles.avatar} color="#94A3B8" />
-            <View style={styles.userMeta}>
-              <Text style={styles.userMainInfo}>尚未设置身体数据</Text>
-              <Text style={styles.userSubInfo}>设置后可查看预测和建议</Text>
+          ) : (
+            <View style={styles.userRow}>
+              <Avatar.Icon size={56} icon="account-off" style={styles.avatar} color={theme.colors.textTertiary} />
+              <View style={styles.userMeta}>
+                <Text style={styles.userMainInfo}>尚未设置身体数据</Text>
+                <Text style={styles.userSubInfo}>设置后可查看预测和建议</Text>
+              </View>
+              <Button
+                mode="text"
+                onPress={() => navigation.navigate('BodyData')}
+                labelStyle={styles.editText}
+                icon="pencil"
+                compact
+              >
+                设置
+              </Button>
             </View>
-            <Button
-              mode="text"
-              onPress={() => navigation.navigate('BodyData')}
-              labelStyle={styles.editText}
-              icon="pencil"
-              compact
-            >
-              设置
-            </Button>
-          </View>
-        )}
-      </View>
+          )}
+        </Card.Content>
+      </Card>
 
-      {/* 统计概览 - 三列紧凑卡片 */}
+      {/* 目标进度 */}
       <View style={styles.statsRow}>
-        <Card style={[styles.statCard, styles.statCardFirst]}>
-          <Card.Content style={styles.statCardContent}>
-            <Avatar.Icon size={28} icon="dumbbell" style={{ backgroundColor: 'transparent' }} color="#6366F1" />
-            <Text style={styles.statNumber}>{completedWorkouts.length}</Text>
-            <Text style={styles.statLabel}>完成训练</Text>
+        <Card style={[styles.miniCard]}>
+          <Card.Content style={styles.miniCardContent}>
+            <Avatar.Icon size={28} icon="calendar-week" style={{ backgroundColor: 'transparent' }} color={theme.colors.primary} />
+            <Text style={styles.miniNumber} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+              {weekWorkouts}/{WEEKLY_GOAL}
+            </Text>
+            <Text style={styles.miniLabel}>本周训练</Text>
+            <View style={styles.miniProgressTrack}>
+              <View style={[styles.miniProgressFill, { width: `${Math.min(weekWorkouts / WEEKLY_GOAL, 1) * 100}%`, backgroundColor: theme.colors.primary }]} />
+            </View>
           </Card.Content>
         </Card>
-        <Card style={styles.statCard}>
-          <Card.Content style={styles.statCardContent}>
-            <Avatar.Icon size={28} icon="weight-kilogram" style={{ backgroundColor: 'transparent' }} color="#10B981" />
-            <Text style={styles.statNumber}>{(totalVolume / 1000).toFixed(1)}k</Text>
-            <Text style={styles.statLabel}>总容量</Text>
+        <Card style={[styles.miniCard]}>
+          <Card.Content style={styles.miniCardContent}>
+            <Avatar.Icon size={28} icon="calendar-month" style={{ backgroundColor: 'transparent' }} color={theme.colors.success} />
+            <Text style={styles.miniNumber} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+              {monthWorkouts}/{MONTHLY_GOAL}
+            </Text>
+            <Text style={styles.miniLabel}>本月训练</Text>
+            <View style={styles.miniProgressTrack}>
+              <View style={[styles.miniProgressFill, { width: `${Math.min(monthWorkouts / MONTHLY_GOAL, 1) * 100}%`, backgroundColor: theme.colors.success }]} />
+            </View>
           </Card.Content>
         </Card>
-        <Card style={styles.statCard}>
-          <Card.Content style={styles.statCardContent}>
-            <Avatar.Icon size={28} icon="format-list-bulleted" style={{ backgroundColor: 'transparent' }} color="#F59E0B" />
-            <Text style={styles.statNumber}>{exercises.length}</Text>
-            <Text style={styles.statLabel}>动作数</Text>
+        <Card style={[styles.miniCard]}>
+          <Card.Content style={styles.miniCardContent}>
+            <Avatar.Icon size={28} icon="format-list-bulleted" style={{ backgroundColor: 'transparent' }} color={theme.colors.warning} />
+            <Text style={styles.miniNumber} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+              {workoutPlans.length}
+            </Text>
+            <Text style={styles.miniLabel}>训练计划</Text>
+            <View style={styles.miniProgressTrack}>
+              <View style={[styles.miniProgressFill, { width: workoutPlans.length > 0 ? '100%' : '0%', backgroundColor: theme.colors.warning }]} />
+            </View>
           </Card.Content>
         </Card>
       </View>
 
       {/* 功能列表 */}
-      <Card style={styles.menuCard}>
-        <List.Section style={styles.menuSection}>
+      <Card style={styles.card}>
+        <List.Section>
           <List.Item
             title="动作库管理"
             description="查看和管理训练动作"
-            left={props => <List.Icon {...props} icon="dumbbell" color="#6366F1" />}
-            right={props => <List.Icon {...props} icon="chevron-right" color="#CBD5E1" />}
+            left={props => <List.Icon {...props} icon="dumbbell" color={theme.colors.primary} />}
+            right={props => <List.Icon {...props} icon="chevron-right" color={theme.colors.textTertiary} />}
             onPress={() => navigation.navigate('ExerciseLibrary')}
             style={styles.listItem}
             titleStyle={styles.listTitle}
             descriptionStyle={styles.listDesc}
           />
-          <Divider style={styles.menuDivider} />
+          <Divider style={styles.listDivider} />
           <List.Item
             title="身体预测"
             description="增肌减脂预测与身体重组"
-            left={props => <List.Icon {...props} icon="trending-up" color="#10B981" />}
-            right={props => <List.Icon {...props} icon="chevron-right" color="#CBD5E1" />}
+            left={props => <List.Icon {...props} icon="trending-up" color={theme.colors.success} />}
+            right={props => <List.Icon {...props} icon="chevron-right" color={theme.colors.textTertiary} />}
             onPress={() => navigation.navigate('Prediction')}
             style={styles.listItem}
             titleStyle={styles.listTitle}
             descriptionStyle={styles.listDesc}
           />
-          <Divider style={styles.menuDivider} />
+          <Divider style={styles.listDivider} />
           <List.Item
             title="身体数据"
             description="设置体重、年龄、目标等"
-            left={props => <List.Icon {...props} icon="account-details" color="#F59E0B" />}
-            right={props => <List.Icon {...props} icon="chevron-right" color="#CBD5E1" />}
+            left={props => <List.Icon {...props} icon="account-details" color={theme.colors.warning} />}
+            right={props => <List.Icon {...props} icon="chevron-right" color={theme.colors.textTertiary} />}
             onPress={() => navigation.navigate('BodyData')}
             style={styles.listItem}
             titleStyle={styles.listTitle}
@@ -220,11 +246,11 @@ export default function ProfileScreen({ navigation }: any) {
       </Card>
 
       {/* 云同步卡片 */}
-      <Card style={styles.menuCard}>
+      <Card style={styles.card}>
         <Card.Content>
           <View style={styles.syncHeader}>
             <View style={styles.syncTitleRow}>
-              <MaterialCommunityIcons name="cloud-sync-outline" size={20} color="#6366F1" />
+              <MaterialCommunityIcons name="cloud-sync-outline" size={20} color={theme.colors.primary} />
               <Text style={styles.syncTitle}>云同步</Text>
             </View>
             <View style={[styles.syncBadge, { backgroundColor: getSyncStatusColor() + '20' }]}>
@@ -238,7 +264,7 @@ export default function ProfileScreen({ navigation }: any) {
           <View style={styles.syncInfoRow}>
             <Text style={styles.syncLabel}>账号</Text>
             <Text style={styles.syncValue} numberOfLines={1}>
-              {isGuest ? '游客模式（数据仅本地保存）' : (getCurrentUser()?.email || '-')}
+              {isGuest ? '游客模式（数据仅本地保存）' : (authUser || '-')}
             </Text>
           </View>
           <View style={styles.syncInfoRow}>
@@ -264,7 +290,7 @@ export default function ProfileScreen({ navigation }: any) {
               style={styles.logoutButton}
               icon={isGuest ? "login" : "logout"}
               compact
-              textColor={isGuest ? "#6366F1" : "#EF4444"}
+              textColor={isGuest ? theme.colors.primary : theme.colors.danger}
             >
               {isGuest ? '登录账号' : '退出登录'}
             </Button>
@@ -281,21 +307,22 @@ export default function ProfileScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
   },
-  userSection: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+  card: {
+    ...cardStyle,
+    marginBottom: cardSpacing.marginBottom,
+  },
+  userCard: {
+    ...cardStyle,
+    marginBottom: cardSpacing.marginBottom,
   },
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   avatar: {
-    backgroundColor: '#EEF2FF',
+    backgroundColor: theme.colors.primaryLight,
   },
   avatarCustom: {
     width: 56,
@@ -321,91 +348,82 @@ const styles = StyleSheet.create({
   userMainInfo: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1E293B',
+    color: theme.colors.text,
   },
   userSubInfo: {
     fontSize: 13,
-    color: '#64748B',
+    color: theme.colors.textSecondary,
     marginTop: 2,
   },
   editText: {
     fontSize: 13,
-    color: '#6366F1',
+    color: theme.colors.primary,
     fontWeight: '500',
     marginLeft: -4,
   },
   statsRow: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
     gap: 10,
+    marginBottom: cardSpacing.marginBottom,
   },
-  statCard: {
+  miniCard: {
+    ...cardStyle,
     flex: 1,
-    borderRadius: 14,
-    backgroundColor: '#fff',
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
+    marginBottom: 0,
   },
-  statCardFirst: {
-    marginLeft: 0,
-  },
-  statCardContent: {
+  miniCardContent: {
     alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: 4,
   },
-  statNumber: {
-    fontSize: 22,
+  miniNumber: {
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#1E293B',
+    color: theme.colors.text,
     marginTop: 6,
+    includeFontPadding: false,
   },
-  statLabel: {
+  miniLabel: {
     fontSize: 11,
-    color: '#94A3B8',
+    color: theme.colors.textTertiary,
     marginTop: 2,
   },
-  menuCard: {
-    marginHorizontal: 16,
-    borderRadius: 16,
-    backgroundColor: '#fff',
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
+  miniProgressTrack: {
+    width: '100%',
+    height: 4,
+    backgroundColor: theme.colors.border,
+    borderRadius: 2,
+    marginTop: 8,
+    overflow: 'hidden',
   },
-  menuSection: {
-    paddingVertical: 4,
+  miniProgressFill: {
+    height: '100%',
+    borderRadius: 2,
   },
   listItem: {
-    paddingVertical: 10,
-    paddingHorizontal: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
   },
   listTitle: {
     fontSize: 15,
     fontWeight: '500',
-    color: '#1E293B',
+    color: theme.colors.text,
   },
   listDesc: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: theme.colors.textTertiary,
     marginTop: 1,
   },
-  menuDivider: {
-    marginHorizontal: 16,
-    backgroundColor: '#F1F5F9',
+  listDivider: {
+    marginHorizontal: 4,
+    backgroundColor: theme.colors.border,
   },
   version: {
     textAlign: 'center',
     fontSize: 12,
     color: '#CBD5E1',
     marginTop: 24,
-    marginBottom: 32,
+    marginBottom: 16,
   },
   syncHeader: {
     flexDirection: 'row',
@@ -421,7 +439,7 @@ const styles = StyleSheet.create({
   syncTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1E293B',
+    color: theme.colors.text,
   },
   syncBadge: {
     flexDirection: 'row',
@@ -447,11 +465,11 @@ const styles = StyleSheet.create({
   },
   syncLabel: {
     fontSize: 13,
-    color: '#64748B',
+    color: theme.colors.textSecondary,
   },
   syncValue: {
     fontSize: 13,
-    color: '#1E293B',
+    color: theme.colors.text,
     fontWeight: '500',
   },
   syncButtonRow: {
@@ -462,7 +480,7 @@ const styles = StyleSheet.create({
   },
   syncButton: {
     borderRadius: 8,
-    borderColor: '#6366F1',
+    borderColor: theme.colors.primary,
   },
   logoutButton: {
     marginLeft: -8,

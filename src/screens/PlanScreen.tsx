@@ -1,8 +1,15 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, FlatList, Alert } from 'react-native';
+import { View, StyleSheet, FlatList, Alert, TouchableOpacity, ScrollView } from 'react-native';
 import { Text, Card, Button, FAB, Avatar, Portal, Dialog, IconButton } from 'react-native-paper';
 import { useAppStore } from '../store';
 import { WorkoutPlan } from '../types';
+import { theme, cardStyle, cardSpacing } from '../theme';
+
+const presetTemplates = [
+  { name: '推日计划', desc: '胸 · 肩 · 三头', icon: 'arm-flex', color: theme.colors.danger, focus: 'chest' },
+  { name: '拉日计划', desc: '背 · 二头 · 后束', icon: 'weight-lifter', color: theme.colors.success, focus: 'back' },
+  { name: '腿日计划', desc: '股四 · 腘绳 · 臀', icon: 'human-handsdown', color: theme.colors.warning, focus: 'legs' },
+];
 
 export default function PlanScreen({ navigation }: any) {
   const { workoutPlans, workoutRecords, deleteWorkoutPlan } = useAppStore();
@@ -20,9 +27,9 @@ export default function PlanScreen({ navigation }: any) {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case '今日已完成': return '#10B981';
-      case '今日已取消': return '#EF4444';
-      default: return '#6366F1';
+      case '今日已完成': return theme.colors.success;
+      case '今日已取消': return theme.colors.danger;
+      default: return theme.colors.primary;
     }
   };
 
@@ -55,7 +62,7 @@ export default function PlanScreen({ navigation }: any) {
               <Text style={styles.planName}>{item.name}</Text>
               <View style={styles.planMeta}>
                 <View style={styles.metaItem}>
-                  <Avatar.Icon size={16} icon="dumbbell" style={styles.metaIcon} color="#6366F1" />
+                  <Avatar.Icon size={16} icon="dumbbell" style={styles.metaIcon} color={theme.colors.primary} />
                   <Text style={styles.planDetail}>{item.exercises.length} 个动作</Text>
                 </View>
                 <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
@@ -68,14 +75,14 @@ export default function PlanScreen({ navigation }: any) {
               <IconButton
                 icon="pencil"
                 size={20}
-                iconColor="#6366F1"
+                iconColor={theme.colors.primary}
                 onPress={() => handleEdit(item)}
                 style={styles.iconButton}
               />
               <IconButton
                 icon="delete"
                 size={20}
-                iconColor="#EF4444"
+                iconColor={theme.colors.danger}
                 onPress={() => handleDelete(item)}
                 style={styles.iconButton}
               />
@@ -100,25 +107,51 @@ export default function PlanScreen({ navigation }: any) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Avatar.Icon size={40} icon="calendar-check" style={styles.headerIcon} color="#6366F1" />
+        <Avatar.Icon size={40} icon="calendar-check" style={styles.headerIcon} color={theme.colors.primary} />
         <Text style={styles.sectionTitle}>我的计划</Text>
       </View>
 
       {workoutPlans.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Avatar.Icon size={80} icon="calendar-blank" style={styles.emptyIcon} color="#CBD5E1" />
-          <Text style={styles.emptyText}>暂无训练计划</Text>
-          <Text style={styles.emptySubtext}>创建你的第一个训练计划，开始健身之旅</Text>
+        <ScrollView style={styles.emptyScroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.emptyScrollContent}>
+          <View style={styles.emptyState}>
+            <Avatar.Icon size={64} icon="calendar-blank" style={styles.emptyIcon} color={theme.colors.textTertiary} />
+            <Text style={styles.emptyText}>暂无训练计划</Text>
+            <Text style={styles.emptySubtext}>选择一个推荐模板快速开始，或自定义创建</Text>
+          </View>
+
+          {/* 推荐模板 */}
+          <Text style={styles.presetTitle}>推荐模板</Text>
+          <View style={styles.presetList}>
+            {presetTemplates.map((tpl) => (
+              <TouchableOpacity
+                key={tpl.name}
+                style={styles.presetCard}
+                onPress={() => navigation.navigate('CreatePlan', { presetName: tpl.name, presetFocus: tpl.focus })}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.presetIconWrap, { backgroundColor: tpl.color + '15' }]}>
+                  <Avatar.Icon size={32} icon={tpl.icon} style={{ backgroundColor: 'transparent' }} color={tpl.color} />
+                </View>
+                <View style={styles.presetInfo}>
+                  <Text style={styles.presetName}>{tpl.name}</Text>
+                  <Text style={styles.presetDesc}>{tpl.desc}</Text>
+                </View>
+                <Avatar.Icon size={20} icon="plus" style={styles.presetAddIcon} color={tpl.color} />
+              </TouchableOpacity>
+            ))}
+          </View>
+
           <Button
-            mode="contained"
+            mode="outlined"
             onPress={() => navigation.navigate('CreatePlan')}
-            style={styles.createButton}
-            labelStyle={styles.createButtonLabel}
-            icon="plus"
+            style={styles.customCreateButton}
+            labelStyle={styles.customCreateLabel}
+            icon="plus-circle-outline"
+            textColor={theme.colors.primary}
           >
-            创建第一个计划
+            自定义创建
           </Button>
-        </View>
+        </ScrollView>
       ) : (
         <FlatList
           data={workoutPlans}
@@ -145,8 +178,8 @@ export default function PlanScreen({ navigation }: any) {
             </Text>
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setShowDeleteDialog(false)} textColor="#64748B">取消</Button>
-            <Button onPress={confirmDelete} mode="contained" style={{ borderRadius: 8, backgroundColor: '#EF4444' }}>
+            <Button onPress={() => setShowDeleteDialog(false)} textColor={theme.colors.textSecondary}>取消</Button>
+            <Button onPress={confirmDelete} mode="contained" style={{ borderRadius: 8, backgroundColor: theme.colors.danger }}>
               删除
             </Button>
           </Dialog.Actions>
@@ -159,7 +192,7 @@ export default function PlanScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: theme.colors.background,
     paddingHorizontal: 16,
     paddingBottom: 16,
   },
@@ -170,27 +203,18 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   headerIcon: {
-    backgroundColor: '#EEF2FF',
+    backgroundColor: theme.colors.primaryLight,
     marginRight: 12,
   },
   sectionTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1E293B',
+    color: theme.colors.text,
   },
   list: {
     paddingBottom: 80,
   },
-  planCard: {
-    marginBottom: 12,
-    borderRadius: 16,
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-  },
+  planCard: { ...cardStyle, marginBottom: cardSpacing.marginBottom, },
   planHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -202,7 +226,7 @@ const styles = StyleSheet.create({
   planName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1E293B',
+    color: theme.colors.text,
     marginBottom: 8,
   },
   planMeta: {
@@ -220,7 +244,7 @@ const styles = StyleSheet.create({
   },
   planDetail: {
     fontSize: 14,
-    color: '#64748B',
+    color: theme.colors.textSecondary,
   },
   statusBadge: {
     flexDirection: 'row',
@@ -261,34 +285,82 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   emptyState: {
-    flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 40,
+    paddingVertical: 16,
+  },
+  emptyScroll: {
+    flex: 1,
+  },
+  emptyScrollContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 80,
   },
   emptyIcon: {
     backgroundColor: 'transparent',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   emptyText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#64748B',
+    color: theme.colors.textSecondary,
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: theme.colors.textTertiary,
     textAlign: 'center',
     marginBottom: 24,
   },
-  createButton: {
-    width: 200,
-    borderRadius: 12,
-    backgroundColor: '#6366F1',
+  // ── 推荐模板 ──
+  presetTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.text,
+    marginBottom: 12,
   },
-  createButtonLabel: {
+  presetList: {
+    gap: 10,
+    marginBottom: 20,
+  },
+  presetCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    ...cardStyle,
+    elevation: 1,
+  },
+  presetIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  presetInfo: {
+    flex: 1,
+  },
+  presetName: {
     fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  presetDesc: {
+    fontSize: 12,
+    color: theme.colors.textTertiary,
+    marginTop: 2,
+  },
+  presetAddIcon: {
+    backgroundColor: 'transparent',
+  },
+  customCreateButton: {
+    borderRadius: 12,
+    borderColor: theme.colors.primary,
+    borderWidth: 1.5,
+  },
+  customCreateLabel: {
+    fontSize: 15,
     fontWeight: '600',
   },
   fab: {
@@ -296,7 +368,7 @@ const styles = StyleSheet.create({
     margin: 20,
     right: 0,
     bottom: 0,
-    backgroundColor: '#6366F1',
+    backgroundColor: theme.colors.primary,
     borderRadius: 16,
   },
   dialog: {
@@ -305,7 +377,7 @@ const styles = StyleSheet.create({
   dialogTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1E293B',
+    color: theme.colors.text,
   },
   deleteText: {
     fontSize: 15,

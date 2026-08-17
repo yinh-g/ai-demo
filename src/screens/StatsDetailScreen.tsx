@@ -3,6 +3,7 @@ import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Text, Card, Avatar } from 'react-native-paper';
 import { useAppStore } from '../store';
 import { Exercise, WorkoutRecord, DailyActivity } from '../types';
+import { theme, cardStyle, cardSpacing, pagePadding } from '../theme';
 
 // ---------- 工具 ----------
 export type Range = 'week' | 'month' | 'year';
@@ -111,7 +112,7 @@ function BarChart({ data, color, unit }: { data: BarChartData[]; color: string; 
             <View key={i} style={styles.barCol}>
               <Text style={styles.barValue}>{d.value > 0 ? formatNum(d.value) : ''}</Text>
               <View style={styles.barTrack}>
-                <View style={[styles.barFill, { height: h, backgroundColor: d.value > 0 ? color : '#E2E8F0' }]} />
+                <View style={[styles.barFill, { height: h, backgroundColor: d.value > 0 ? color : theme.colors.border }]} />
               </View>
               <Text style={styles.barLabel}>{d.label}</Text>
             </View>
@@ -216,7 +217,7 @@ function BodyMap({
     if (!zone) return <View style={{ width: w }} />;
     const sets = zone.muscles.reduce((s, m) => s + (muscleStats[m] || 0), 0);
     const t = maxSets > 0 ? sets / maxSets : 0;
-    const bg = sets === 0 ? '#E2E8F0' : intensityColor(t);
+    const bg = sets === 0 ? theme.colors.border : intensityColor(t);
     return (
       <TouchableOpacity
         activeOpacity={0.65}
@@ -227,7 +228,7 @@ function BodyMap({
           selected === zone.muscles[0] && styles.bodyZoneSelected,
         ]}
       >
-        <Text style={[styles.bodyZoneLabel, { color: sets > 0 ? '#fff' : '#94A3B8' }]}>{zone.label}</Text>
+        <Text style={[styles.bodyZoneLabel, { color: sets > 0 ? '#fff' : theme.colors.textTertiary }]}>{zone.label}</Text>
         {sets > 0 && <Text style={styles.bodyZoneSets}>{sets}</Text>}
       </TouchableOpacity>
     );
@@ -393,20 +394,20 @@ function ActivityView({ dailyActivities, range }: { dailyActivities: DailyActivi
   const activePeriods = bucketAgg.filter(d => d.steps > 0).length;
 
   const cur = metric === 'steps' ? stepsData : metric === 'cal' ? calData : distData;
-  const curColor = metric === 'steps' ? '#6366F1' : metric === 'cal' ? '#F59E0B' : '#10B981';
+  const curColor = metric === 'steps' ? theme.colors.primary : metric === 'cal' ? theme.colors.warning : theme.colors.success;
   const curUnit = metric === 'steps' ? '步' : metric === 'cal' ? 'kcal' : 'km';
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView style={[styles.container, pagePadding]} showsVerticalScrollIndicator={false}>
       <View style={styles.headerRow}>
-        <Avatar.Icon size={36} icon="walk" style={styles.headerIcon} color="#6366F1" />
+        <Avatar.Icon size={36} icon="walk" style={styles.headerIcon} color={theme.colors.primary} />
         <Text style={styles.title}>{rangeLabels[range]}活动详情</Text>
       </View>
 
       <View style={styles.summaryGrid}>
-        <SummaryBox label="总步数" value={totalSteps.toLocaleString()} color="#6366F1" />
-        <SummaryBox label="总消耗" value={`${totalCal}`} unit="kcal" color="#F59E0B" />
-        <SummaryBox label="总距离" value={totalDist.toFixed(1)} unit="km" color="#10B981" />
+        <SummaryBox label="总步数" value={totalSteps.toLocaleString()} color={theme.colors.primary} />
+        <SummaryBox label="总消耗" value={`${totalCal}`} unit="kcal" color={theme.colors.warning} />
+        <SummaryBox label="总距离" value={totalDist.toFixed(1)} unit="km" color={theme.colors.success} />
         <SummaryBox label="活跃期" value={`${activePeriods}/${buckets.length}`} color="#EC4899" />
       </View>
 
@@ -473,30 +474,30 @@ function StatsView({ workoutRecords, range }: { workoutRecords: WorkoutRecord[];
   const cardioCnt = all.filter(r => r.workoutType === 'cardio').length;
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView style={[styles.container, pagePadding]} showsVerticalScrollIndicator={false}>
       <View style={styles.headerRow}>
-        <Avatar.Icon size={36} icon="calendar-week" style={styles.headerIcon} color="#10B981" />
+        <Avatar.Icon size={36} icon="calendar-week" style={styles.headerIcon} color={theme.colors.success} />
         <Text style={styles.title}>{rangeLabels[range]}训练详情</Text>
       </View>
 
       <View style={styles.summaryGrid}>
-        <SummaryBox label="训练次数" value={`${totalCnt}`} color="#10B981" />
-        <SummaryBox label="总容量" value={(totalVol / 1000).toFixed(1)} unit="k kg" color="#6366F1" />
-        <SummaryBox label="总时长" value={`${totalDur}`} unit="分钟" color="#F59E0B" />
+        <SummaryBox label="训练次数" value={`${totalCnt}`} color={theme.colors.success} />
+        <SummaryBox label="总容量" value={(totalVol / 1000).toFixed(1)} unit="k kg" color={theme.colors.primary} />
+        <SummaryBox label="总时长" value={`${totalDur}`} unit="分钟" color={theme.colors.warning} />
         <SummaryBox label="力量/有氧" value={`${strengthCnt}/${cardioCnt}`} color="#8B5CF6" />
       </View>
 
       <Card style={styles.card}>
         <Card.Content>
           <Text style={styles.cardTitle}>训练容量趋势</Text>
-          <BarChart data={volData} color="#6366F1" unit="kg" />
+          <BarChart data={volData} color={theme.colors.primary} unit="kg" />
         </Card.Content>
       </Card>
 
       <Card style={styles.card}>
         <Card.Content>
           <Text style={styles.cardTitle}>训练时长趋势</Text>
-          <BarChart data={durData} color="#F59E0B" unit="分钟" />
+          <BarChart data={durData} color={theme.colors.warning} unit="分钟" />
         </Card.Content>
       </Card>
 
@@ -562,9 +563,9 @@ function MuscleDistView({
 
   if (totalHits === 0) {
     return (
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView style={[styles.container, pagePadding]} showsVerticalScrollIndicator={false}>
         <View style={styles.headerRow}>
-          <Avatar.Icon size={36} icon="chart-pie" style={styles.headerIcon} color="#F59E0B" />
+          <Avatar.Icon size={36} icon="chart-pie" style={styles.headerIcon} color={theme.colors.warning} />
           <Text style={styles.title}>{rangeLabels[range]}肌群分布</Text>
         </View>
         <View style={styles.emptyState}><Text style={styles.emptyText}>{rangeLabels[range]}暂无训练数据</Text></View>
@@ -576,17 +577,17 @@ function MuscleDistView({
   const strongest = sortedMuscles[0]!;
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView style={[styles.container, pagePadding]} showsVerticalScrollIndicator={false}>
       <View style={styles.headerRow}>
-        <Avatar.Icon size={36} icon="chart-pie" style={styles.headerIcon} color="#F59E0B" />
+        <Avatar.Icon size={36} icon="chart-pie" style={styles.headerIcon} color={theme.colors.warning} />
         <Text style={styles.title}>{rangeLabels[range]}肌群分布</Text>
       </View>
 
       <View style={styles.summaryGrid}>
-        <SummaryBox label="总组数" value={`${totalHits}`} color="#F59E0B" />
-        <SummaryBox label="涉及肌肉" value={`${sortedMuscles.length}`} color="#6366F1" />
-        <SummaryBox label="最强肌肉" value={MUSCLE_LABELS[strongest[0]] || strongest[0]} color="#10B981" />
-        <SummaryBox label="最弱肌肉" value={sortedMuscles.length >= 2 ? (MUSCLE_LABELS[sortedMuscles[sortedMuscles.length - 1][0]] || '-') : '-'} color="#EF4444" />
+        <SummaryBox label="总组数" value={`${totalHits}`} color={theme.colors.warning} />
+        <SummaryBox label="涉及肌肉" value={`${sortedMuscles.length}`} color={theme.colors.primary} />
+        <SummaryBox label="最强肌肉" value={MUSCLE_LABELS[strongest[0]] || strongest[0]} color={theme.colors.success} />
+        <SummaryBox label="最弱肌肉" value={sortedMuscles.length >= 2 ? (MUSCLE_LABELS[sortedMuscles[sortedMuscles.length - 1][0]] || '-') : '-'} color={theme.colors.danger} />
       </View>
 
       {/* 人体热力图 */}
@@ -680,31 +681,38 @@ function MuscleDistView({
 function SummaryBox({ label, value, unit, color }: { label: string; value: string; unit?: string; color: string }) {
   return (
     <View style={[styles.summaryBox, { borderTopColor: color }]}>
-      <Text style={styles.summaryValue}>{value}</Text>
-      {unit && <Text style={styles.summaryUnit}>{unit}</Text>}
-      <Text style={styles.summaryLabel}>{label}</Text>
+      <Text
+        style={styles.summaryValue}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.6}
+      >
+        {value}
+      </Text>
+      {unit && <Text style={styles.summaryUnit} numberOfLines={1}>{unit}</Text>}
+      <Text style={styles.summaryLabel} numberOfLines={1}>{label}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC', paddingHorizontal: 16, paddingBottom: 24 },
+  container: { flex: 1, backgroundColor: theme.colors.background, paddingHorizontal: 16, paddingBottom: 24 },
 
   // 头部
   headerRow: { flexDirection: 'row', alignItems: 'center', paddingTop: 12, marginBottom: 12 },
-  headerIcon: { backgroundColor: '#EEF2FF', marginRight: 12 },
-  title: { fontSize: 22, fontWeight: 'bold', color: '#1E293B' },
+  headerIcon: { backgroundColor: theme.colors.primaryLight, marginRight: 12 },
+  title: { fontSize: 22, fontWeight: 'bold', color: theme.colors.text },
 
   // 卡片
-  card: { marginBottom: 12, borderRadius: 14, backgroundColor: '#fff', elevation: 2 },
-  cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#1E293B', marginBottom: 12 },
+  card: { ...cardStyle, marginBottom: cardSpacing.marginBottom, },
+  cardTitle: { fontSize: 16, fontWeight: 'bold', color: theme.colors.text, marginBottom: 12 },
   cardHeader: { marginBottom: 4 },
   cardHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 },
 
   // 自定义分段控件
   segmentContainer: {
     flexDirection: 'row',
-    backgroundColor: '#E2E8F0',
+    backgroundColor: theme.colors.border,
     borderRadius: 10,
     padding: 3,
     marginBottom: 12,
@@ -726,10 +734,10 @@ const styles = StyleSheet.create({
   segmentText: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#64748B',
+    color: theme.colors.textSecondary,
   },
   segmentTextActive: {
-    color: '#6366F1',
+    color: theme.colors.primary,
     fontWeight: '600',
   },
 
@@ -748,10 +756,26 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderTopWidth: 3,
     elevation: 1,
+    minHeight: 84,
   },
-  summaryValue: { fontSize: 22, fontWeight: 'bold', color: '#1E293B' },
-  summaryUnit: { fontSize: 12, color: '#94A3B8', marginTop: 1 },
-  summaryLabel: { fontSize: 12, color: '#64748B', marginTop: 4 },
+  summaryValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: theme.colors.text,
+    includeFontPadding: false,
+  },
+  summaryUnit: {
+    fontSize: 11,
+    color: theme.colors.textTertiary,
+    marginTop: 2,
+    includeFontPadding: false,
+  },
+  summaryLabel: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+    marginTop: 4,
+    includeFontPadding: false,
+  },
 
   // 柱状图
   chartWrap: { alignItems: 'center', paddingVertical: 8 },
@@ -760,27 +784,27 @@ const styles = StyleSheet.create({
   barValue: { fontSize: 10, color: '#475569', fontWeight: '600', marginBottom: 4, height: 14 },
   barTrack: { width: 20, height: 130, justifyContent: 'flex-end', alignItems: 'center' },
   barFill: { width: '100%', borderRadius: 4 },
-  barLabel: { fontSize: 11, color: '#64748B', marginTop: 6, fontWeight: '500' },
-  chartUnit: { fontSize: 11, color: '#94A3B8', marginTop: 10 },
+  barLabel: { fontSize: 11, color: theme.colors.textSecondary, marginTop: 6, fontWeight: '500' },
+  chartUnit: { fontSize: 11, color: theme.colors.textTertiary, marginTop: 10 },
 
   // 明细行
   detailRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9',
+    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.colors.border,
   },
   detailDate: { fontSize: 13, color: '#475569', fontWeight: '500' },
-  detailVal: { fontSize: 12, color: '#64748B', flex: 1, textAlign: 'right', marginLeft: 12 },
+  detailVal: { fontSize: 12, color: theme.colors.textSecondary, flex: 1, textAlign: 'right', marginLeft: 12 },
 
   // ── 人体热力图 ──
   bodyMapWrap: { alignItems: 'center', paddingVertical: 8 },
   bodyFigure: { alignItems: 'center' },
   bodyHead: {
     width: 34, height: 34, borderRadius: 17,
-    backgroundColor: '#CBD5E1', marginBottom: 2,
+    backgroundColor: theme.colors.textTertiary, marginBottom: 2,
   },
   bodyNeck: {
     width: 12, height: 6, borderRadius: 3,
-    backgroundColor: '#CBD5E1', marginBottom: 2,
+    backgroundColor: theme.colors.textTertiary, marginBottom: 2,
   },
   bodyRow: {
     flexDirection: 'row',
@@ -797,40 +821,40 @@ const styles = StyleSheet.create({
   },
   bodyZoneSelected: {
     borderWidth: 2,
-    borderColor: '#1E293B',
+    borderColor: theme.colors.text,
   },
   bodyZoneLabel: { fontSize: 9, fontWeight: '600', textAlign: 'center' },
   bodyZoneSets: { fontSize: 10, fontWeight: 'bold', color: '#fff', marginTop: 1 },
 
   // 图例
   legendRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16 },
-  legendText: { fontSize: 11, color: '#64748B', marginHorizontal: 6 },
+  legendText: { fontSize: 11, color: theme.colors.textSecondary, marginHorizontal: 6 },
   legendBar: { flexDirection: 'row', width: 120, height: 8, borderRadius: 4, overflow: 'hidden' },
-  bodyHint: { fontSize: 11, color: '#94A3B8', marginTop: 6, textAlign: 'center' },
+  bodyHint: { fontSize: 11, color: theme.colors.textTertiary, marginTop: 6, textAlign: 'center' },
 
   // 比例条
   propRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderRadius: 8, paddingHorizontal: 4 },
-  propRowSel: { backgroundColor: '#EEF2FF' },
+  propRowSel: { backgroundColor: theme.colors.primaryLight },
   propLabel: { flexDirection: 'row', alignItems: 'center', width: 72 },
   propDot: { width: 10, height: 10, borderRadius: 5, marginRight: 6 },
   propName: { fontSize: 13, color: '#475569', fontWeight: '500' },
-  propBarTrack: { flex: 1, height: 10, backgroundColor: '#F1F5F9', borderRadius: 5, marginHorizontal: 8, overflow: 'hidden' },
+  propBarTrack: { flex: 1, height: 10, backgroundColor: theme.colors.border, borderRadius: 5, marginHorizontal: 8, overflow: 'hidden' },
   propBarFill: { height: '100%', borderRadius: 5 },
   propPct: { width: 48, textAlign: 'right', fontSize: 12, fontWeight: 'bold' },
-  propCnt: { width: 44, textAlign: 'right', fontSize: 11, color: '#94A3B8', marginLeft: 4 },
+  propCnt: { width: 44, textAlign: 'right', fontSize: 11, color: theme.colors.textTertiary, marginLeft: 4 },
 
   // 各肌肉动作
-  catBlock: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', borderRadius: 8, paddingHorizontal: 4 },
-  catBlockSel: { backgroundColor: '#EEF2FF' },
+  catBlock: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: theme.colors.border, borderRadius: 8, paddingHorizontal: 4 },
+  catBlockSel: { backgroundColor: theme.colors.primaryLight },
   catHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
-  catTitle: { fontSize: 14, fontWeight: 'bold', color: '#1E293B', flex: 1 },
-  catSets: { fontSize: 12, color: '#64748B', fontWeight: '600' },
+  catTitle: { fontSize: 14, fontWeight: 'bold', color: theme.colors.text, flex: 1 },
+  catSets: { fontSize: 12, color: theme.colors.textSecondary, fontWeight: '600' },
   actRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4, paddingLeft: 16 },
-  actRank: { width: 20, fontSize: 12, color: '#94A3B8', fontWeight: 'bold' },
+  actRank: { width: 20, fontSize: 12, color: theme.colors.textTertiary, fontWeight: 'bold' },
   actName: { flex: 1, fontSize: 13, color: '#475569' },
-  actSets: { fontSize: 12, color: '#64748B' },
-  actEmpty: { fontSize: 12, color: '#94A3B8', paddingLeft: 16, paddingVertical: 4 },
+  actSets: { fontSize: 12, color: theme.colors.textSecondary },
+  actEmpty: { fontSize: 12, color: theme.colors.textTertiary, paddingLeft: 16, paddingVertical: 4 },
 
   emptyState: { alignItems: 'center', paddingVertical: 60 },
-  emptyText: { fontSize: 15, color: '#94A3B8' },
+  emptyText: { fontSize: 15, color: theme.colors.textTertiary },
 });
