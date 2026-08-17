@@ -209,9 +209,30 @@ function buildPayload(deviceId: string): CloudState {
 function mergeCloudToLocal(cloudData: Record<string, unknown>): void {
   const store = useAppStore.getState();
   const patch: Record<string, unknown> = {};
+
+  // 特殊处理 exercises：合并时确保去重
+  if (cloudData.exercises !== undefined) {
+    const cloudExercises = cloudData.exercises as any[];
+    const localExercises = store.exercises as any[];
+    // 以云端数据为基础，补充本地独有的（按id去重）
+    const cloudIds = new Set(cloudExercises.map(e => e.id));
+    const localOnly = localExercises.filter(e => !cloudIds.has(e.id));
+    // 合并并按名称去重（保留第一个出现的）
+    const merged = [...cloudExercises, ...localOnly];
+    const seen = new Set<string>();
+    const deduped = merged.filter(e => {
+      const key = e.name.trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    patch.exercises = deduped;
+  }
+
   SYNC_FIELDS.forEach((k) => {
-    if (cloudData[k] !== undefined) patch[k] = cloudData[k];
+    if (k !== 'exercises' && cloudData[k] !== undefined) patch[k] = cloudData[k];
   });
+
   // 保留本地进行中的训练
   patch.currentWorkout = store.currentWorkout;
   patch.currentCardio = store.currentCardio;

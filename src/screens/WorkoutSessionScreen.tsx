@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StyleSheet, ScrollView, Vibration } from 'react-native';
+import { View, StyleSheet, ScrollView, Vibration, Pressable } from 'react-native';
 import { Text, Card, Button, TextInput, Portal, Dialog, ProgressBar, Avatar } from 'react-native-paper';
 import { useAppStore } from '../store';
 import { ExerciseRecord, SetRecord, PlanExercise } from '../types';
@@ -24,8 +24,10 @@ export default function WorkoutSessionScreen({ navigation, route }: any) {
   const [sessionExercises, setSessionExercises] = useState<PlanExercise[]>([]);
   const [pickerVisible, setPickerVisible] = useState(false);
   const [pickerMode, setPickerMode] = useState<'add' | 'replace'>('add');
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
 
-  const plan = planId ? workoutPlans.find(p => p.id === planId) : null;
+  const effectivePlanId = selectedPlanId || planId;
+  const plan = effectivePlanId ? workoutPlans.find(p => p.id === effectivePlanId) : null;
 
   // 初始化 sessionExercises（仅在 plan 存在且未初始化时）
   useEffect(() => {
@@ -38,8 +40,8 @@ export default function WorkoutSessionScreen({ navigation, route }: any) {
   const currentExercise = currentPlanExercise ? exercises.find(e => e.id === currentPlanExercise.exerciseId) : null;
 
   useEffect(() => {
-    if (planId && !currentWorkout) {
-      startWorkout(planId);
+    if (effectivePlanId && !currentWorkout) {
+      startWorkout(effectivePlanId);
     }
 
     if (currentPlanExercise) {
@@ -219,11 +221,64 @@ export default function WorkoutSessionScreen({ navigation, route }: any) {
   if (!plan) {
     return (
       <View style={styles.container}>
-        <Avatar.Icon size={80} icon="alert-circle" style={styles.emptyIcon} color="#CBD5E1" />
-        <Text style={styles.noPlanText}>请从计划开始训练</Text>
-        <Button mode="contained" onPress={() => navigation.goBack()} style={styles.backButton} labelStyle={styles.backButtonLabel}>
-          返回
-        </Button>
+        <View style={styles.emptyContainer}>
+          <View style={styles.illustrationWrapper}>
+            <Text style={styles.illustrationEmoji}>💪</Text>
+          </View>
+          <Text style={styles.emptyTitle}>开始力量训练</Text>
+          <Text style={styles.emptySubtitle}>选择一个训练计划开始记录，或创建一个新计划</Text>
+          
+          {workoutPlans.length > 0 && (
+            <View style={styles.planListCard}>
+              <Text style={styles.planListTitle}>📋 你的训练计划</Text>
+              {workoutPlans.slice(0, 3).map((p: any) => (
+                <Pressable
+                  key={p.id}
+                  style={styles.planItem}
+                  onPress={() => setSelectedPlanId(p.id)}
+                >
+                  <View style={styles.planItemLeft}>
+                    <View style={styles.planItemIconBg}>
+                      <Text style={styles.planItemIcon}>🔥</Text>
+                    </View>
+                    <View style={styles.planItemInfo}>
+                      <Text style={styles.planItemName} numberOfLines={1}>{p.name}</Text>
+                      <Text style={styles.planItemMeta}>{p.exercises.length}个动作</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.planItemArrow}>›</Text>
+                </Pressable>
+              ))}
+              {workoutPlans.length > 3 && (
+                <Text style={styles.morePlansHint}>还有 {workoutPlans.length - 3} 个计划...</Text>
+              )}
+            </View>
+          )}
+
+          <View style={styles.actionButtons}>
+            <Button
+              mode="contained"
+              onPress={() => navigation.navigate('CreatePlan')}
+              style={styles.primaryActionBtn}
+              labelStyle={styles.primaryActionLabel}
+              icon="plus-circle"
+            >
+              {workoutPlans.length === 0 ? '创建训练计划' : '创建新计划'}
+            </Button>
+            
+            {workoutPlans.length > 0 && (
+              <Button
+                mode="outlined"
+                onPress={() => navigation.navigate('Main', { screen: 'Plans' })}
+                style={styles.secondaryActionBtn}
+                labelStyle={styles.secondaryActionLabel}
+                icon="view-grid"
+              >
+                管理所有计划
+              </Button>
+            )}
+          </View>
+        </View>
       </View>
     );
   }
@@ -679,23 +734,128 @@ const styles = StyleSheet.create({
   skipActionButton: {
     backgroundColor: '#fff',
   },
-  emptyIcon: {
-    backgroundColor: 'transparent',
-    marginBottom: 20,
+  emptyContainer: {
+    flex: 1,
+    padding: 24,
+    justifyContent: 'center',
   },
-  noPlanText: {
-    fontSize: 18,
+  illustrationWrapper: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginBottom: 24,
+  },
+  illustrationEmoji: {
+    fontSize: 48,
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1E293B',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 15,
     color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 22,
+    paddingHorizontal: 16,
+    marginBottom: 28,
   },
-  backButton: {
+  planListCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  planListTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748B',
+    marginBottom: 12,
+  },
+  planItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  planItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  planItemIconBg: {
+    width: 40,
+    height: 40,
     borderRadius: 12,
-    backgroundColor: '#6366F1',
-    paddingHorizontal: 32,
+    backgroundColor: '#FEF3C7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
-  backButtonLabel: {
+  planItemIcon: {
+    fontSize: 20,
+  },
+  planItemInfo: {
+    flex: 1,
+  },
+  planItemName: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#1E293B',
+    marginBottom: 2,
+  },
+  planItemMeta: {
+    fontSize: 13,
+    color: '#94A3B8',
+  },
+  planItemArrow: {
+    fontSize: 24,
+    color: '#CBD5E1',
+    fontWeight: '300',
+  },
+  morePlansHint: {
+    fontSize: 13,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  actionButtons: {
+    gap: 12,
+  },
+  primaryActionBtn: {
+    borderRadius: 14,
+    backgroundColor: '#6366F1',
+    paddingVertical: 4,
+  },
+  primaryActionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  secondaryActionBtn: {
+    borderRadius: 14,
+    borderColor: '#6366F1',
+    paddingVertical: 4,
+  },
+  secondaryActionLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#6366F1',
   },
 });

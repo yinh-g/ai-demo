@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, FlatList, ScrollView } from 'react-native';
+import { View, StyleSheet, FlatList, ScrollView, TextInput as NativeTextInput } from 'react-native';
 import { Text, Card, Button, TextInput, Chip, Portal, Dialog, IconButton, Avatar } from 'react-native-paper';
 import { useAppStore } from '../store';
 import { Exercise, PlanExercise } from '../types';
@@ -14,12 +14,26 @@ export default function CreatePlanScreen({ navigation, route }: any) {
   const [selectedExercises, setSelectedExercises] = useState<PlanExercise[]>(existingPlan?.exercises || []);
   const [showExerciseDialog, setShowExerciseDialog] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const categories = ['chest', 'back', 'legs', 'shoulders', 'arms', 'core', 'cardio'];
 
-  const filteredExercises = selectedCategory
-    ? exercises.filter(e => e.category === selectedCategory)
-    : exercises;
+  // 去重：按名字去重，保留第一个
+  const seen = new Set<string>();
+  const uniqueExercises = exercises.filter(e => {
+    if (seen.has(e.name)) return false;
+    seen.add(e.name);
+    return true;
+  });
+
+  let filteredExercises = uniqueExercises;
+  if (selectedCategory) {
+    filteredExercises = filteredExercises.filter(e => e.category === selectedCategory);
+  }
+  if (searchQuery.trim()) {
+    const q = searchQuery.trim().toLowerCase();
+    filteredExercises = filteredExercises.filter(e => e.name.toLowerCase().includes(q));
+  }
 
   const handleAddExercise = (exercise: Exercise) => {
     const planExercise: PlanExercise = {
@@ -258,7 +272,16 @@ export default function CreatePlanScreen({ navigation, route }: any) {
 
       <Portal>
         <Dialog visible={showExerciseDialog} onDismiss={() => setShowExerciseDialog(false)} style={styles.dialog}>
-          <Dialog.Title style={styles.dialogTitle}>选择动作</Dialog.Title>
+          <View style={styles.dialogHeader}>
+            <Dialog.Title style={styles.dialogTitle}>选择动作</Dialog.Title>
+            <IconButton
+              icon="close"
+              size={22}
+              onPress={() => setShowExerciseDialog(false)}
+              iconColor="#64748B"
+              style={styles.dialogCloseBtn}
+            />
+          </View>
           <Dialog.Content>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryFilter}>
               <Chip
@@ -306,9 +329,6 @@ export default function CreatePlanScreen({ navigation, route }: any) {
               showsVerticalScrollIndicator={false}
             />
           </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setShowExerciseDialog(false)} textColor="#64748B">关闭</Button>
-          </Dialog.Actions>
         </Dialog>
       </Portal>
     </View>
@@ -446,10 +466,20 @@ const styles = StyleSheet.create({
     maxHeight: '80%',
     borderRadius: 20,
   },
+  dialogHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingRight: 8,
+  },
   dialogTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#1E293B',
+  },
+  dialogCloseBtn: {
+    margin: 0,
+    backgroundColor: '#F1F5F9',
   },
   categoryFilter: {
     flexDirection: 'row',

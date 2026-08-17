@@ -69,9 +69,13 @@ export const useAppStore = create<AppState>()(
 
       // 动作库
       exercises: [],
-      addExercise: (exercise) => set((state) => ({
-        exercises: [...state.exercises, exercise]
-      })),
+      addExercise: (exercise) => set((state) => {
+        // 防止添加同名动作（忽略大小写和空格）
+        const normalizedName = exercise.name.trim().toLowerCase();
+        const exists = state.exercises.some(e => e.name.trim().toLowerCase() === normalizedName);
+        if (exists) return state;
+        return { exercises: [...state.exercises, exercise] };
+      }),
       updateExercise: (id, exercise) => set((state) => ({
         exercises: state.exercises.map((e) =>
           e.id === id ? { ...e, ...exercise } : e

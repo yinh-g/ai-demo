@@ -125,8 +125,19 @@ function AppContent() {
         }
 
         // 3. 批量初始化默认动作库（单次写入，避免 235 次逐条 addExercise 触发渲染）
-        if (useAppStore.getState().exercises.length === 0) {
+        // 同时确保数据唯一性，防止重复
+        const { exercises: currentExercises } = useAppStore.getState();
+        if (currentExercises.length === 0) {
           useAppStore.setState({ exercises: defaultExercises });
+        } else {
+          // 检查是否缺少默认动作（用户可能误删），补充缺失的默认动作
+          const existingIds = new Set(currentExercises.map(e => e.id));
+          const missingDefaults = defaultExercises.filter(e => !existingIds.has(e.id));
+          if (missingDefaults.length > 0) {
+            useAppStore.setState({
+              exercises: [...currentExercises, ...missingDefaults]
+            });
+          }
         }
 
         // 4. 立即就绪 —— 不等待网络请求
