@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Exercise, WorkoutPlan, WorkoutRecord, UserProfile, CardioActivity, WorkoutType, DailyActivity } from '../types';
+import { Exercise, WorkoutPlan, WorkoutRecord, UserProfile, CardioActivity, WorkoutType, DailyActivity, FoodLog, NutritionFacts } from '../types';
 
 interface AppState {
   // 用户资料
@@ -45,6 +45,14 @@ interface AppState {
   dailyActivities: DailyActivity[];
   setDailyActivity: (activity: DailyActivity) => void;
   getTodayActivity: () => DailyActivity | undefined;
+
+  // 饮食记录（拍照识别食物热量）
+  foodLogs: FoodLog[];
+  addFoodLog: (log: FoodLog) => void;
+  updateFoodLog: (id: string, log: Partial<FoodLog>) => void;
+  deleteFoodLog: (id: string) => void;
+  getTodayFoodLogs: () => FoodLog[];
+  getTodayNutrition: () => NutritionFacts;
 
   // 云同步状态
   syncStatus: 'idle' | 'syncing' | 'offline' | 'error';
@@ -233,6 +241,32 @@ export const useAppStore = create<AppState>()(
         return get().dailyActivities.find(a => a.date === today);
       },
 
+      // 饮食记录（拍照识别食物热量）
+      foodLogs: [],
+      addFoodLog: (log) => set((state) => ({
+        foodLogs: [...state.foodLogs, log]
+      })),
+      updateFoodLog: (id, log) => set((state) => ({
+        foodLogs: state.foodLogs.map((l) => l.id === id ? { ...l, ...log } : l)
+      })),
+      deleteFoodLog: (id) => set((state) => ({
+        foodLogs: state.foodLogs.filter((l) => l.id !== id)
+      })),
+      getTodayFoodLogs: () => {
+        const today = new Date().toISOString().split('T')[0];
+        return get().foodLogs.filter((l) => l.date === today);
+      },
+      getTodayNutrition: () => {
+        const today = new Date().toISOString().split('T')[0];
+        const logs = get().foodLogs.filter((l) => l.date === today);
+        return logs.reduce<NutritionFacts>((acc, log) => ({
+          calories: acc.calories + (log.total?.calories || 0),
+          protein: (acc.protein || 0) + (log.total?.protein || 0),
+          carbs: (acc.carbs || 0) + (log.total?.carbs || 0),
+          fat: (acc.fat || 0) + (log.total?.fat || 0),
+        }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+      },
+
       // 云同步状态（不持久化）
       syncStatus: 'idle',
       setSyncStatus: (status) => set({ syncStatus: status }),
@@ -255,6 +289,7 @@ export const useAppStore = create<AppState>()(
         workoutPlans: state.workoutPlans,
         workoutRecords: state.workoutRecords,
         dailyActivities: state.dailyActivities,
+        foodLogs: state.foodLogs,
       })
     }
   )

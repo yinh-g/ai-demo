@@ -10,6 +10,7 @@ const SYNC_FIELDS = [
   'workoutPlans',
   'workoutRecords',
   'dailyActivities',
+  'foodLogs',
 ] as const;
 
 const PUSH_DEBOUNCE_MS = 3000;

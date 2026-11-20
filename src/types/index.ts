@@ -189,3 +189,38 @@ export interface BodyRecompositionPrediction {
   bodyCompositionScore: number;
   recommendations: string[];
 }
+
+// ────────────────────────────────────────────────────────────
+// 饮食记录（拍照识别食物热量）
+// ────────────────────────────────────────────────────────────
+
+// 餐次
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
+// 营养信息（单份或汇总）
+export interface NutritionFacts {
+  calories: number; // kcal
+  protein?: number; // g
+  carbs?: number;   // g
+  fat?: number;     // g
+}
+
+// 单个食物条目（AI 识别或手动录入）
+export interface FoodItem extends NutritionFacts {
+  name: string;
+  amount: number;                                // 数量
+  unit: 'g' | 'ml' | 'piece' | 'bowl';           // 单位
+  confidence: number;                            // 识别置信度 0-1
+}
+
+// 一条饮食记录（对应一餐）
+export interface FoodLog {
+  id: string;
+  date: string;              // YYYY-MM-DD
+  mealType: MealType;
+  items: FoodItem[];
+  total: NutritionFacts;     // 本条记录的营养汇总
+  source: 'ai' | 'manual';
+  createdAt: number;
+  updatedAt: number;
+}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert, useWindowDimensions, TouchableOpacity } from 'react-native';
-import { Text, Card, Button, Avatar, TextInput, Portal, Dialog } from 'react-native-paper';
+import { Text, Card, Button, Avatar, TextInput, Portal, Dialog, IconButton } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Pedometer } from 'expo-sensors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -10,8 +10,10 @@ import { theme, cardStyle, pagePadding } from '../theme';
 const STEP_GOAL = 10000;
 
 export default function HomeScreen({ navigation }: any) {
-  const { userProfile, workoutRecords, dailyActivities, setDailyActivity, getTodayActivity } = useAppStore();
+  const { userProfile, workoutRecords, dailyActivities, setDailyActivity, getTodayActivity, getTodayFoodLogs, getTodayNutrition } = useAppStore();
   const todayActivity = getTodayActivity();
+  const todayFoodLogs = getTodayFoodLogs();
+  const todayNutrition = getTodayNutrition();
 
   const [showActivityDialog, setShowActivityDialog] = useState(false);
   const [activityInput, setActivityInput] = useState({ steps: '', calories: '', distance: '' });
@@ -261,6 +263,36 @@ export default function HomeScreen({ navigation }: any) {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* 今日饮食 — 拍照识别入口 */}
+        <TouchableOpacity
+          style={styles.foodCard}
+          activeOpacity={0.85}
+          onPress={() => navigation.navigate('FoodScan')}
+        >
+          <View style={styles.foodIconWrap}>
+            <Avatar.Icon
+              size={38}
+              icon="food-apple-outline"
+              style={{ backgroundColor: 'transparent' }}
+              color={theme.colors.warning}
+            />
+          </View>
+          <View style={styles.foodInfo}>
+            <Text style={styles.foodTitle}>今日饮食</Text>
+            <Text style={styles.foodSub}>
+              {todayFoodLogs.length > 0
+                ? `已记录 ${todayFoodLogs.length} 餐 · 摄入 ${Math.round(todayNutrition.calories)} kcal`
+                : '拍张照片，自动估算食物热量'}
+            </Text>
+          </View>
+          <IconButton
+            icon="camera"
+            size={22}
+            iconColor={theme.colors.primary}
+            style={{ margin: 0 }}
+          />
+        </TouchableOpacity>
 
         {/* 最近训练 */}
         {recentRecords.length > 0 && (
@@ -587,6 +619,38 @@ const styles = StyleSheet.create({
   ctaButtonSub: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
+  },
+
+  // ── 今日饮食 ──
+  foodCard: {
+    ...cardStyle,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+  },
+  foodIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FEF3C7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  foodInfo: {
+    flex: 1,
+  },
+  foodTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  foodSub: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
     marginTop: 2,
   },
 

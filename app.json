@@ -36,6 +36,14 @@
         {
           "faceIDPermission": "允许 $(PRODUCT_NAME) 使用 Face ID 登录"
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "允许 $(PRODUCT_NAME) 访问相册以选择食物照片",
+          "cameraPermission": "允许 $(PRODUCT_NAME) 使用相机拍摄食物照片",
+          "microphonePermission": false
+        }
       ]
     ],
     "extra": {
