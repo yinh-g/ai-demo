@@ -3,6 +3,7 @@ import { MuscleGrowthInput, MuscleGrowthPrediction, UserProfile } from '../types
 export function predictMuscleGrowth(params: MuscleGrowthInput): {
   monthlyGain: number;
   yearlyGain: number;
+  monthlyRange: { min: number; max: number };
   confidence: number;
   factors: {
     baseGrowthRate: number;
@@ -13,7 +14,9 @@ export function predictMuscleGrowth(params: MuscleGrowthInput): {
     recoveryFactor: number;
   };
 } {
-  const { userWeight, age, gender, trainingYears, weeklyVolume, proteinIntake, sleepHours } = params;
+  const { userWeight, age, gender, trainingYears, weeklyVolume, proteinIntake, sleepHours, muscleGainFactor } = params;
+  // 个体校准因子（默认 1 = 不修正）
+  const gainFactor = muscleGainFactor && muscleGainFactor > 0 ? muscleGainFactor : 1;
   
   // 1. 基础增长系数 (% of body weight per month)
   let baseGrowthRate: number;
@@ -90,7 +93,7 @@ export function predictMuscleGrowth(params: MuscleGrowthInput): {
   }
   
   // 7. 计算预测值
-  const monthlyGain = userWeight * baseGrowthRate * ageFactor * genderFactor * volumeFactor * nutritionFactor * recoveryFactor;
+  const monthlyGain = userWeight * baseGrowthRate * ageFactor * genderFactor * volumeFactor * nutritionFactor * recoveryFactor * gainFactor;
   const yearlyGain = monthlyGain * 12;
   
   // 8. 置信度计算
@@ -104,9 +107,17 @@ export function predictMuscleGrowth(params: MuscleGrowthInput): {
     0.15
   );
   
+  // 置信区间：置信度越低，区间越宽（±20% ~ ±30%）
+  const spread = confidence >= 0.7 ? 0.2 : 0.3;
+  const round2 = (v: number) => Math.round(v * 100) / 100;
+
   return {
     monthlyGain: Math.round(monthlyGain * 100) / 100,
     yearlyGain: Math.round(yearlyGain * 100) / 100,
+    monthlyRange: {
+      min: round2(Math.max(0, monthlyGain * (1 - spread))),
+      max: round2(monthlyGain * (1 + spread)),
+    },
     confidence: Math.round(confidence * 100) / 100,
     factors: {
       baseGrowthRate,

@@ -7,7 +7,7 @@
 //   supabase functions deploy analyze-food
 //
 // 可选环境变量：
-//   VISION_MODEL      默认 qwen-vl-plus
+//   VISION_MODEL      默认 qwen3.7-plus（百炼视觉理解模型；旧的 qwen-vl-plus 已下线）
 //   VISION_BASE_URL   默认 https://dashscope.aliyuncs.com/compatible-mode/v1
 //   DAILY_LIMIT       单用户每日识别次数上限，默认 20
 
@@ -19,7 +19,7 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const DEFAULT_MODEL = 'qwen-vl-plus';
+const DEFAULT_MODEL = 'qwen3.7-plus';
 const DEFAULT_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
 const DEFAULT_DAILY_LIMIT = 20;
 
@@ -82,7 +82,8 @@ Deno.serve(async (req: Request) => {
     const authHeader = req.headers.get('Authorization') || '';
     const token = authHeader.replace('Bearer ', '').trim();
     if (!token) {
-      return json({ ok: false, error: '未登录' }, 401);
+      // 业务错误统一返回 200 + ok:false，避免客户端被 supabase-js 的通用 non-2xx 提示吞掉细节
+      return json({ ok: false, error: '未登录' });
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -90,7 +91,7 @@ Deno.serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     if (userError || !user) {
-      return json({ ok: false, error: '登录状态无效' }, 401);
+      return json({ ok: false, error: '登录状态无效' });
     }
 
     // 2. 限流
@@ -117,7 +118,8 @@ Deno.serve(async (req: Request) => {
     // 4. 调用国产多模态模型（OpenAI 兼容接口，默认通义千问 VL）
     const apiKey = Deno.env.get('DASHSCOPE_API_KEY');
     if (!apiKey) {
-      return json({ ok: false, error: '服务端未配置 DASHSCOPE_API_KEY' }, 500);
+      console.error('analyze-food: DASHSCOPE_API_KEY is not set in function secrets');
+      return json({ ok: false, error: '服务端未配置 DASHSCOPE_API_KEY' });
     }
 
     const model = Deno.env.get('VISION_MODEL') || DEFAULT_MODEL;
@@ -152,7 +154,7 @@ Deno.serve(async (req: Request) => {
     if (!modelRes.ok) {
       const detail = await modelRes.text();
       console.error('model request failed:', modelRes.status, detail);
-      return json({ ok: false, error: `识别模型调用失败（${modelRes.status}）` }, 502);
+      return json({ ok: false, error: `识别模型调用失败（${modelRes.status}）` });
     }
 
     const modelJson = await modelRes.json() as {
@@ -172,6 +174,6 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true, items, note: parsed.note || '' });
   } catch (e) {
     console.error('analyze-food error:', e);
-    return json({ ok: false, error: e instanceof Error ? e.message : '识别失败' }, 500);
+    return json({ ok: false, error: e instanceof Error ? e.message : '识别失败' });
   }
 });

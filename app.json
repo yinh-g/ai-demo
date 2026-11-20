@@ -44,7 +44,8 @@
           "cameraPermission": "允许 $(PRODUCT_NAME) 使用相机拍摄食物照片",
           "microphonePermission": false
         }
-      ]
+      ],
+      "expo-notifications"
     ],
     "extra": {
       "supabase": {

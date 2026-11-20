@@ -11,6 +11,9 @@ const SYNC_FIELDS = [
   'workoutRecords',
   'dailyActivities',
   'foodLogs',
+  'bodyMeasurements',
+  'predictionSnapshots',
+  'calibration',
 ] as const;
 
 const PUSH_DEBOUNCE_MS = 3000;
@@ -230,8 +233,42 @@ function mergeCloudToLocal(cloudData: Record<string, unknown>): void {
     patch.exercises = deduped;
   }
 
+  // 身体测量：按日期并集，同一天保留较新记录
+  if (cloudData.bodyMeasurements !== undefined) {
+    const cloud = (cloudData.bodyMeasurements as any[]) || [];
+    const byDate = new Map<string, any>();
+    [...cloud, ...(store.bodyMeasurements as any[])].forEach((m) => {
+      const cur = byDate.get(m.date);
+      if (!cur || (m.createdAt || 0) > (cur.createdAt || 0)) byDate.set(m.date, m);
+    });
+    patch.bodyMeasurements = Array.from(byDate.values());
+  }
+
+  // 预测快照：按日期并集，保留最近 60 条
+  if (cloudData.predictionSnapshots !== undefined) {
+    const cloud = (cloudData.predictionSnapshots as any[]) || [];
+    const byDate = new Map<string, any>();
+    [...cloud, ...(store.predictionSnapshots as any[])].forEach((s) => {
+      const cur = byDate.get(s.date);
+      if (!cur || (s.createdAt || 0) > (cur.createdAt || 0)) byDate.set(s.date, s);
+    });
+    patch.predictionSnapshots = Array.from(byDate.values())
+      .sort((a, b) => (a.date < b.date ? 1 : -1))
+      .slice(0, 60);
+  }
+
+  // 校准状态：取 updatedAt 较新者
+  if (cloudData.calibration !== undefined) {
+    const cloud = cloudData.calibration as any;
+    const local = store.calibration as any;
+    if (!local) patch.calibration = cloud;
+    else if (!cloud) patch.calibration = local;
+    else patch.calibration = (cloud.updatedAt || 0) > (local.updatedAt || 0) ? cloud : local;
+  }
+
+  const mergedFields = new Set(['exercises', 'bodyMeasurements', 'predictionSnapshots', 'calibration']);
   SYNC_FIELDS.forEach((k) => {
-    if (k !== 'exercises' && cloudData[k] !== undefined) patch[k] = cloudData[k];
+    if (!mergedFields.has(k) && cloudData[k] !== undefined) patch[k] = cloudData[k];
   });
 
   // 保留本地进行中的训练

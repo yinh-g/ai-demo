@@ -19,6 +19,7 @@ export function calculateActivityLevel(weeklyCardioMinutes: number, weeklyStreng
 export function predictFatLoss(params: FatLossInput): {
   monthlyFatLoss: number;
   weeklyFatLoss: number;
+  weeklyRange: { min: number; max: number };
   weeklyDeficit: number;
   confidence: number;
   factors: {
@@ -30,11 +31,12 @@ export function predictFatLoss(params: FatLossInput): {
     genderFactor: number;
   };
 } {
-  const { userWeight, age, gender, height, weeklyCardioMinutes, weeklyCardioCalories, weeklyStrengthMinutes, dailyCalorieIntake, proteinIntake, sleepHours } = params;
+  const { userWeight, age, gender, height, weeklyCardioMinutes, weeklyCardioCalories, weeklyStrengthMinutes, dailyCalorieIntake, proteinIntake, sleepHours, tdeeFactor } = params;
 
   const bmr = calculateBMR(userWeight, height, age, gender);
   const activityLevel = calculateActivityLevel(weeklyCardioMinutes, weeklyStrengthMinutes);
-  const tdee = bmr * activityLevel;
+  // 用个体校准因子修正公式 TDEE（默认 1 = 不修正）
+  const tdee = bmr * activityLevel * (tdeeFactor && tdeeFactor > 0 ? tdeeFactor : 1);
 
   const weeklyBurn = tdee * 7 + weeklyCardioCalories;
   const weeklyIntake = dailyCalorieIntake * 7;
@@ -88,9 +90,17 @@ export function predictFatLoss(params: FatLossInput): {
     0.05
   );
 
+  // 置信区间：置信度越低，区间越宽（±15% ~ ±30%）
+  const spread = confidence >= 0.7 ? 0.15 : confidence >= 0.45 ? 0.22 : 0.3;
+  const round2 = (v: number) => Math.round(v * 100) / 100;
+
   return {
     monthlyFatLoss: Math.round(monthlyFatLoss * 100) / 100,
     weeklyFatLoss: Math.round(weeklyFatLoss * 100) / 100,
+    weeklyRange: {
+      min: round2(Math.max(0, weeklyFatLoss * (1 - spread))),
+      max: round2(weeklyFatLoss * (1 + spread)),
+    },
     weeklyDeficit: Math.round(weeklyDeficit),
     confidence: Math.round(confidence * 100) / 100,
     factors: {
@@ -132,6 +142,7 @@ export function predictBodyRecomposition(
     weeklyCardioCalories: fatLossInput.weeklyCardioCalories,
     predictedMonthlyFatLoss: fat.monthlyFatLoss,
     predictedWeeklyFatLoss: fat.weeklyFatLoss,
+    weeklyRange: fat.weeklyRange,
     predictedWeeklyCalorieDeficit: fat.weeklyDeficit,
     confidence: fat.confidence,
     factors: fat.factors

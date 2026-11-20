@@ -4,15 +4,22 @@ import { Text, Card, Button, ProgressBar, Avatar } from 'react-native-paper';
 import { useAppStore } from '../store';
 import { predictMuscleGrowth, generateOptimizationSuggestions } from '../utils/prediction';
 import { predictBodyRecomposition } from '../utils/fatLossPrediction';
-import { MuscleGrowthPrediction, BodyRecompositionPrediction } from '../types';
+import { MuscleGrowthPrediction, BodyRecompositionPrediction, PredictionSnapshot } from '../types';
+import { getWeightTrend } from '../utils/bodyTrend';
 
 type PredictionTab = 'muscle' | 'fatloss' | 'recomposition';
 
 export default function PredictionScreen({ navigation }: any) {
-  const { userProfile, workoutRecords, dailyActivities } = useAppStore();
+  const { userProfile, workoutRecords, dailyActivities, foodLogs, getNutritionStats, bodyMeasurements, calibration, addPredictionSnapshot } = useAppStore();
   const [activeTab, setActiveTab] = useState<PredictionTab>('recomposition');
   const [musclePrediction, setMusclePrediction] = useState<MuscleGrowthPrediction | null>(null);
   const [recomposition, setRecomposition] = useState<BodyRecompositionPrediction | null>(null);
+  const [nutritionInfo, setNutritionInfo] = useState<{
+    days: number;
+    avgCalories: number;
+    proteinPerKg: number;
+    usingFood: boolean;
+  } | null>(null);
 
   useEffect(() => {
     if (userProfile) {
@@ -42,14 +49,37 @@ export default function PredictionScreen({ navigation }: any) {
         ? weekActivities.reduce((sum, a) => sum + a.steps, 0) / weekActivities.length
         : 0;
 
+      // 联动饮食记录：优先用最近 7 天真实摄入，无记录时回退到身体数据里的手填值
+      const nutrition = getNutritionStats(7);
+      const usingFood = nutrition.days > 0;
+      const dailyCalorieIntake = usingFood
+        ? nutrition.avgCalories
+        : (userProfile.dailyCalorieIntake || 2000);
+
+      // 体重优先用最近测量的趋势值，减少单日水分波动对预测的影响
+      const trendWeight = getWeightTrend(bodyMeasurements);
+      const effectiveWeight = trendWeight ?? userProfile.weight;
+
+      const proteinPerKg = usingFood && effectiveWeight > 0
+        ? Math.round((nutrition.avgProtein / effectiveWeight) * 10) / 10
+        : userProfile.proteinIntake;
+
+      setNutritionInfo({
+        days: nutrition.days,
+        avgCalories: dailyCalorieIntake,
+        proteinPerKg,
+        usingFood,
+      });
+
       const muscleInput = {
-        userWeight: userProfile.weight,
+        userWeight: effectiveWeight,
         age: userProfile.age,
         gender: userProfile.gender,
         trainingYears: userProfile.trainingYears,
         weeklyVolume,
-        proteinIntake: userProfile.proteinIntake,
+        proteinIntake: proteinPerKg,
         sleepHours: userProfile.sleepHours,
+        muscleGainFactor: calibration?.muscleGainFactor ?? 1,
       };
 
       const muscleResult = predictMuscleGrowth(muscleInput);
@@ -60,13 +90,14 @@ export default function PredictionScreen({ navigation }: any) {
         weeklyVolume,
         predictedMonthlyGain: muscleResult.monthlyGain,
         predictedYearlyGain: muscleResult.yearlyGain,
+        monthlyRange: muscleResult.monthlyRange,
         confidence: muscleResult.confidence,
         factors: muscleResult.factors,
       };
       setMusclePrediction(muscleData);
 
       const fatLossInput = {
-        userWeight: userProfile.weight,
+        userWeight: effectiveWeight,
         age: userProfile.age,
         gender: userProfile.gender,
         height: userProfile.height,
@@ -74,15 +105,32 @@ export default function PredictionScreen({ navigation }: any) {
         weeklyCardioMinutes,
         weeklyCardioCalories: weeklyCardioCalories + Math.round(dailyActiveCalories * 7),
         weeklyStrengthMinutes,
-        dailyCalorieIntake: userProfile.dailyCalorieIntake || 2000,
-        proteinIntake: userProfile.proteinIntake,
+        dailyCalorieIntake,
+        proteinIntake: proteinPerKg,
         sleepHours: userProfile.sleepHours,
+        tdeeFactor: calibration?.tdeeFactor ?? 1,
       };
 
       const recompResult = predictBodyRecomposition(muscleInput, fatLossInput, userProfile, muscleData);
       setRecomposition(recompResult);
+
+      // 保存每日预测快照，供之后对比“预测 vs 实际”
+      const today = new Date().toISOString().split('T')[0];
+      const exists = useAppStore.getState().predictionSnapshots.some((s) => s.date === today);
+      if (!exists) {
+        const snapshot: PredictionSnapshot = {
+          id: `${today}-${Date.now()}`,
+          date: today,
+          weightAtPrediction: effectiveWeight,
+          bodyFatAtPrediction: userProfile.bodyFat,
+          predictedWeeklyFatLoss: recompResult.fatLoss.predictedWeeklyFatLoss,
+          predictedMonthlyMuscleGain: recompResult.muscleGain.predictedMonthlyGain,
+          createdAt: Date.now(),
+        };
+        addPredictionSnapshot(snapshot);
+      }
     }
-  }, [userProfile, workoutRecords, dailyActivities]);
+  }, [userProfile, workoutRecords, dailyActivities, foodLogs, bodyMeasurements, calibration]);
 
   if (!userProfile) {
     return (
@@ -187,6 +235,11 @@ export default function PredictionScreen({ navigation }: any) {
               <Text style={styles.predictionUnit}>kg/年</Text>
             </View>
           </View>
+          {musclePrediction.monthlyRange && (
+            <Text style={styles.rangeText}>
+              合理区间：{musclePrediction.monthlyRange.min} ~ {musclePrediction.monthlyRange.max} kg/月
+            </Text>
+          )}
           <View style={styles.confidenceRow}>
             <Text style={styles.confidenceLabel}>置信度</Text>
             <Text style={styles.confidenceValue}>{(musclePrediction.confidence * 100).toFixed(0)}%</Text>
@@ -234,6 +287,11 @@ export default function PredictionScreen({ navigation }: any) {
               <Text style={styles.predictionUnit}>kg/周</Text>
             </View>
           </View>
+          {recomposition.fatLoss.weeklyRange && (
+            <Text style={styles.rangeText}>
+              合理区间：{recomposition.fatLoss.weeklyRange.min} ~ {recomposition.fatLoss.weeklyRange.max} kg/周
+            </Text>
+          )}
           {recomposition.fatLoss.timeToGoal && (
             <View style={styles.goalRow}>
               <Text style={styles.goalLabel}>预计达到目标</Text>
@@ -277,6 +335,50 @@ export default function PredictionScreen({ navigation }: any) {
         <Avatar.Icon size={40} icon="trending-up" style={styles.headerIcon} color="#6366F1" />
         <Text style={styles.title}>身体预测</Text>
       </View>
+
+      {/* 饮食联动状态 */}
+      {nutritionInfo && (
+        <Card style={styles.nutritionCard}>
+          <Card.Content style={styles.nutritionContent}>
+            <Avatar.Icon size={30} icon="food-apple" style={{ backgroundColor: 'transparent' }} color="#F59E0B" />
+            <View style={styles.nutritionTextWrap}>
+              <Text style={styles.nutritionTitle}>
+                {nutritionInfo.usingFood
+                  ? `已联动最近 ${nutritionInfo.days} 天饮食记录`
+                  : '暂无饮食记录，使用手填摄入值'}
+              </Text>
+              <Text style={styles.nutritionSub}>
+                {nutritionInfo.usingFood
+                  ? `日均 ${nutritionInfo.avgCalories} kcal · 蛋白 ${nutritionInfo.proteinPerKg} g/kg`
+                  : '拍照记录饮食后，预测会自动更准确'}
+              </Text>
+            </View>
+            <Button
+              compact
+              mode="text"
+              onPress={() => navigation.navigate('FoodHistory')}
+              textColor="#6366F1"
+            >
+              查看
+            </Button>
+          </Card.Content>
+        </Card>
+      )}
+
+      {/* 个体校准状态 */}
+      {calibration && (
+        <TouchableOpacity
+          style={styles.calibBanner}
+          activeOpacity={0.8}
+          onPress={() => navigation.navigate('BodyTrack')}
+        >
+          <Avatar.Icon size={22} icon="tune-variant" style={{ backgroundColor: 'transparent' }} color="#10B981" />
+          <Text style={styles.calibBannerText}>
+            已根据你的实际数据校准 · 代谢系数 ×{calibration.tdeeFactor.toFixed(2)}
+          </Text>
+          <Avatar.Icon size={16} icon="chevron-right" style={{ backgroundColor: 'transparent' }} color="#64748B" />
+        </TouchableOpacity>
+      )}
 
       {/* Tab 切换 */}
       <View style={styles.tabContainer}>
@@ -362,6 +464,52 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#1E293B',
+  },
+  nutritionCard: {
+    marginBottom: 12,
+    borderRadius: 14,
+    backgroundColor: '#FFFBEB',
+    elevation: 0,
+    shadowOpacity: 0,
+  },
+  nutritionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  nutritionTextWrap: {
+    flex: 1,
+    marginLeft: 6,
+  },
+  nutritionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  nutritionSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  rangeText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.85)',
+    marginTop: 6,
+  },
+  calibBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  calibBannerText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#047857',
+    marginLeft: 4,
   },
   tabContainer: {
     flexDirection: 'row',

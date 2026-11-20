@@ -29,6 +29,8 @@ import BodyDataScreen from './src/screens/BodyDataScreen';
 import WorkoutRecordDetailScreen from './src/screens/WorkoutRecordDetailScreen';
 import StatsDetailScreen from './src/screens/StatsDetailScreen';
 import FoodScanScreen from './src/screens/FoodScanScreen';
+import FoodHistoryScreen from './src/screens/FoodHistoryScreen';
+import BodyTrackScreen from './src/screens/BodyTrackScreen';
 
 const tabIcons: Record<string, { active: string; inactive: string }> = {
   Home: { active: 'home', inactive: 'home-outline' },
@@ -218,6 +220,8 @@ function AppContent() {
               <Stack.Screen name="WorkoutRecordDetail" component={WorkoutRecordDetailScreen} options={{ title: '训练详情' }} />
               <Stack.Screen name="StatsDetail" component={StatsDetailScreen} options={{ title: '数据详情' }} />
               <Stack.Screen name="FoodScan" component={FoodScanScreen} options={{ title: '拍照记饮食' }} />
+              <Stack.Screen name="FoodHistory" component={FoodHistoryScreen} options={{ title: '饮食记录' }} />
+              <Stack.Screen name="BodyTrack" component={BodyTrackScreen} options={{ title: '体重与校准' }} />
             </Stack.Navigator>
           </NavigationContainer>
         </PaperProvider>

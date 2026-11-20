@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { Text, Card, Button, Avatar, Divider, TouchableRipple } from 'react-native-paper';
+import { LineChart } from 'react-native-chart-kit';
 import { useAppStore } from '../store';
 import { rangeLabels, Range } from './StatsDetailScreen';
 import { theme, cardStyle, cardSpacing, pagePadding } from '../theme';
@@ -19,9 +20,10 @@ function rangeStartMs(range: Range): number {
 }
 
 export default function StatsScreen({ navigation }: any) {
-  const { workoutRecords, exercises, dailyActivities } = useAppStore();
+  const { workoutRecords, exercises, dailyActivities, foodLogs, userProfile, getNutritionStats } = useAppStore();
   const [range, setRange] = useState<Range>('week');
   const rStart = rangeStartMs(range);
+  const { width: screenWidth } = useWindowDimensions();
 
   // 按 range 过滤
   const rangeRecords = workoutRecords.filter(r => r.status === 'completed' && new Date(r.date).getTime() >= rStart);
@@ -91,6 +93,37 @@ export default function StatsScreen({ navigation }: any) {
   const totalActivityCalories = rangeActivities.reduce((sum, a) => sum + a.activeCalories, 0);
   const totalDistance = rangeActivities.reduce((sum, a) => sum + a.distanceKm, 0);
   const avgSteps = rangeActivities.length > 0 ? Math.round(totalSteps / rangeActivities.length) : 0;
+
+  // ── 饮食摄入趋势（近 7 天）──
+  const last7 = useMemo(() => {
+    const days: { date: string; label: string; calories: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const calories = foodLogs
+        .filter(l => l.date === dateStr)
+        .reduce((sum, l) => sum + (l.total?.calories || 0), 0);
+      days.push({ date: dateStr, label: `${d.getMonth() + 1}/${d.getDate()}`, calories });
+    }
+    return days;
+  }, [foodLogs]);
+
+  const nutritionStats = useMemo(() => getNutritionStats(7), [foodLogs]);
+  const hasFoodData = last7.some(d => d.calories > 0);
+  const avgProteinPerKg = userProfile && userProfile.weight > 0
+    ? Math.round((nutritionStats.avgProtein / userProfile.weight) * 10) / 10
+    : 0;
+  const chartWidth = Math.max(240, screenWidth - 64);
+  const chartConfig = {
+    backgroundGradientFrom: '#FFFFFF',
+    backgroundGradientTo: '#FFFFFF',
+    decimalPlaces: 0,
+    color: (opacity = 1) => `rgba(99, 102, 241, ${opacity})`,
+    labelColor: (opacity = 1) => `rgba(148, 163, 184, ${opacity})`,
+    propsForDots: { r: '4', strokeWidth: '2', stroke: '#6366F1' },
+    propsForBackgroundLines: { stroke: '#F1F5F9' },
+  };
 
   return (
     <ScrollView style={[styles.container, pagePadding]} showsVerticalScrollIndicator={false}>
@@ -193,6 +226,64 @@ export default function StatsScreen({ navigation }: any) {
           </Card.Content>
         </TouchableRipple>
       </Card>
+
+      {/* 饮食摄入趋势 */}
+      {hasFoodData && (
+        <Card style={styles.card}>
+          <TouchableRipple onPress={() => navigation.navigate('FoodHistory')} borderless>
+            <Card.Content>
+              <View style={styles.sectionHeader}>
+                <Avatar.Icon size={24} icon="food-apple" style={styles.sectionIcon} color={theme.colors.warning} />
+                <Text style={styles.sectionTitle}>近 7 天摄入</Text>
+                <View style={styles.chevronWrap}>
+                  <Avatar.Icon size={16} icon="chevron-right" style={styles.chevron} color={theme.colors.textTertiary} />
+                  <Text style={styles.tapHint}>查看记录</Text>
+                </View>
+              </View>
+
+              <View style={styles.weekStats}>
+                <View style={styles.weekStat}>
+                  <Text style={styles.weekNumber} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                    {nutritionStats.avgCalories}
+                  </Text>
+                  <Text style={styles.weekLabel}>日均(kcal)</Text>
+                </View>
+                <View style={styles.divider} />
+                <View style={styles.weekStat}>
+                  <Text style={styles.weekNumber} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                    {nutritionStats.days}
+                  </Text>
+                  <Text style={styles.weekLabel}>记录天数</Text>
+                </View>
+                <View style={styles.divider} />
+                <View style={styles.weekStat}>
+                  <Text style={styles.weekNumber} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                    {avgProteinPerKg}
+                  </Text>
+                  <Text style={styles.weekLabel}>蛋白(g/kg)</Text>
+                </View>
+              </View>
+
+              <LineChart
+                data={{
+                  labels: last7.map(d => d.label),
+                  datasets: [{ data: last7.map(d => d.calories) }],
+                }}
+                width={chartWidth}
+                height={180}
+                chartConfig={chartConfig}
+                bezier
+                fromZero
+                withShadow={false}
+                withInnerLines
+                withOuterLines={false}
+                yAxisSuffix=""
+                style={styles.chart}
+              />
+            </Card.Content>
+          </TouchableRipple>
+        </Card>
+      )}
 
       <Card style={styles.card}>
         <TouchableRipple onPress={() => navigation.navigate('StatsDetail', { type: 'stats', range })} borderless>
@@ -536,6 +627,11 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     marginTop: 4,
     textAlign: 'center',
+  },
+  chart: {
+    marginTop: 8,
+    marginLeft: -8,
+    borderRadius: 12,
   },
   muscleBar: {
     flexDirection: 'row',

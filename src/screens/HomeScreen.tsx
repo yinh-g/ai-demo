@@ -268,7 +268,7 @@ export default function HomeScreen({ navigation }: any) {
         <TouchableOpacity
           style={styles.foodCard}
           activeOpacity={0.85}
-          onPress={() => navigation.navigate('FoodScan')}
+          onPress={() => navigation.navigate('FoodHistory')}
         >
           <View style={styles.foodIconWrap}>
             <Avatar.Icon
@@ -291,6 +291,7 @@ export default function HomeScreen({ navigation }: any) {
             size={22}
             iconColor={theme.colors.primary}
             style={{ margin: 0 }}
+            onPress={() => navigation.navigate('FoodScan')}
           />
         </TouchableOpacity>
 

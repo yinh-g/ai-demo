@@ -82,13 +82,26 @@ export async function analyzeFoodPhoto(localUri: string): Promise<AnalyzeFoodRes
   });
 
   if (error) {
-    // 函数未部署时通常是 404
-    const message = error.message || '识别服务调用失败';
-    throw new Error(
-      message.includes('404') || message.includes('not found')
-        ? '识别服务未部署，请先部署 analyze-food 云函数'
-        : message
-    );
+    // supabase-js 只给出通用 message，真实响应体在 error.context 中
+    const ctx = (error as { context?: Response }).context;
+    const status = ctx?.status;
+    let detail = '';
+    if (ctx && typeof ctx.json === 'function') {
+      try {
+        const body = (await ctx.json()) as { error?: string };
+        detail = body?.error || '';
+      } catch {
+        // 响应不是 JSON，忽略
+      }
+    }
+
+    if (status === 404) {
+      throw new Error('识别服务未部署，请先部署 analyze-food 云函数');
+    }
+    if (detail) {
+      throw new Error(detail);
+    }
+    throw new Error(`识别服务调用失败（HTTP ${status ?? '未知'}）`);
   }
 
   const payload = data as { ok?: boolean; items?: unknown[]; note?: string; error?: string } | null;

@@ -1,7 +1,25 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Exercise, WorkoutPlan, WorkoutRecord, UserProfile, CardioActivity, WorkoutType, DailyActivity, FoodLog, NutritionFacts } from '../types';
+import { Exercise, WorkoutPlan, WorkoutRecord, UserProfile, CardioActivity, WorkoutType, DailyActivity, FoodLog, NutritionFacts, BodyMeasurement, PredictionSnapshot, CalibrationState } from '../types';
+
+// 近 N 天饮食营养统计
+export interface DailyNutrition {
+  date: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
+export interface NutritionStats {
+  days: number;          // 实际有记录的天数
+  avgCalories: number;   // 有记录天的日均摄入
+  avgProtein: number;    // g
+  avgCarbs: number;      // g
+  avgFat: number;        // g
+  daily: DailyNutrition[]; // 按日期倒序
+}
 
 interface AppState {
   // 用户资料
@@ -53,6 +71,18 @@ interface AppState {
   deleteFoodLog: (id: string) => void;
   getTodayFoodLogs: () => FoodLog[];
   getTodayNutrition: () => NutritionFacts;
+  getFoodLogsByDate: (date: string) => FoodLog[];
+  getNutritionStats: (days: number) => NutritionStats;
+
+  // 身体测量时序 + 预测校准
+  bodyMeasurements: BodyMeasurement[];
+  predictionSnapshots: PredictionSnapshot[];
+  calibration: CalibrationState | null;
+  addBodyMeasurement: (m: BodyMeasurement) => void;
+  deleteBodyMeasurement: (id: string) => void;
+  getLatestMeasurement: () => BodyMeasurement | undefined;
+  addPredictionSnapshot: (s: PredictionSnapshot) => void;
+  setCalibration: (c: CalibrationState | null) => void;
 
   // 云同步状态
   syncStatus: 'idle' | 'syncing' | 'offline' | 'error';
@@ -266,6 +296,86 @@ export const useAppStore = create<AppState>()(
           fat: (acc.fat || 0) + (log.total?.fat || 0),
         }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
       },
+      getFoodLogsByDate: (date) => get().foodLogs.filter((l) => l.date === date),
+      getNutritionStats: (days) => {
+        // 只统计最近 days 天内“有记录”的日期，按实际记录天数求平均，避免把没记录的天当 0
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - (days - 1));
+        const cutoffStr = cutoff.toISOString().split('T')[0];
+
+        const byDate = new Map<string, DailyNutrition>();
+        get().foodLogs.forEach((log) => {
+          if (log.date < cutoffStr) return;
+          const cur = byDate.get(log.date) || {
+            date: log.date, calories: 0, protein: 0, carbs: 0, fat: 0,
+          };
+          cur.calories += log.total?.calories || 0;
+          cur.protein += log.total?.protein || 0;
+          cur.carbs += log.total?.carbs || 0;
+          cur.fat += log.total?.fat || 0;
+          byDate.set(log.date, cur);
+        });
+
+        const daily = Array.from(byDate.values()).sort((a, b) => (a.date < b.date ? 1 : -1));
+        const n = daily.length;
+        const sum = daily.reduce(
+          (acc, d) => ({
+            calories: acc.calories + d.calories,
+            protein: acc.protein + d.protein,
+            carbs: acc.carbs + d.carbs,
+            fat: acc.fat + d.fat,
+          }),
+          { calories: 0, protein: 0, carbs: 0, fat: 0 }
+        );
+        const r1 = (v: number) => Math.round(v * 10) / 10;
+
+        return {
+          days: n,
+          avgCalories: n > 0 ? Math.round(sum.calories / n) : 0,
+          avgProtein: n > 0 ? r1(sum.protein / n) : 0,
+          avgCarbs: n > 0 ? r1(sum.carbs / n) : 0,
+          avgFat: n > 0 ? r1(sum.fat / n) : 0,
+          daily,
+        };
+      },
+
+      // ── 身体测量时序 + 预测校准 ──
+      bodyMeasurements: [],
+      predictionSnapshots: [],
+      calibration: null,
+      addBodyMeasurement: (m) => set((state) => {
+        // 同一天只保留一条（重复记录则覆盖）
+        const rest = state.bodyMeasurements.filter((x) => x.date !== m.date);
+        const next = [...rest, m];
+        const newestDate = next.reduce((max, x) => (x.date > max ? x.date : max), '');
+
+        // 若新增的是最新一条，同步更新 userProfile 的体重/体脂
+        const userProfile = state.userProfile && m.date >= newestDate
+          ? {
+              ...state.userProfile,
+              weight: m.weight,
+              bodyFat: m.bodyFat !== undefined ? m.bodyFat : state.userProfile.bodyFat,
+              updatedAt: Date.now(),
+            }
+          : state.userProfile;
+
+        return { bodyMeasurements: next, userProfile };
+      }),
+      deleteBodyMeasurement: (id) => set((state) => ({
+        bodyMeasurements: state.bodyMeasurements.filter((x) => x.id !== id),
+      })),
+      getLatestMeasurement: () => {
+        const list = get().bodyMeasurements;
+        if (list.length === 0) return undefined;
+        return list.reduce((a, b) => (a.date >= b.date ? a : b));
+      },
+      addPredictionSnapshot: (s) => set((state) => {
+        // 同一天只保留一条，最多保留最近 60 条
+        const rest = state.predictionSnapshots.filter((x) => x.date !== s.date);
+        const next = [...rest, s].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 60);
+        return { predictionSnapshots: next };
+      }),
+      setCalibration: (c) => set({ calibration: c }),
 
       // 云同步状态（不持久化）
       syncStatus: 'idle',
@@ -290,6 +400,9 @@ export const useAppStore = create<AppState>()(
         workoutRecords: state.workoutRecords,
         dailyActivities: state.dailyActivities,
         foodLogs: state.foodLogs,
+        bodyMeasurements: state.bodyMeasurements,
+        predictionSnapshots: state.predictionSnapshots,
+        calibration: state.calibration,
       })
     }
   )

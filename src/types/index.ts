@@ -123,6 +123,7 @@ export interface MuscleGrowthPrediction {
   weeklyVolume: number;
   predictedMonthlyGain: number;
   predictedYearlyGain: number;
+  monthlyRange?: { min: number; max: number }; // 置信区间
   confidence: number;
   factors: {
     baseGrowthRate: number;
@@ -143,6 +144,7 @@ export interface MuscleGrowthInput {
   weeklyVolume: number;
   proteinIntake: number;
   sleepHours: number;
+  muscleGainFactor?: number; // 个体校准系数（默认 1）
 }
 
 // 减脂预测输入
@@ -158,6 +160,7 @@ export interface FatLossInput {
   dailyCalorieIntake: number;
   proteinIntake: number;
   sleepHours: number;
+  tdeeFactor?: number; // 个体校准系数（默认 1）
 }
 
 // 减脂预测结果
@@ -168,6 +171,7 @@ export interface FatLossPrediction {
   weeklyCardioCalories: number;
   predictedMonthlyFatLoss: number;
   predictedWeeklyFatLoss: number;
+  weeklyRange?: { min: number; max: number }; // 置信区间
   predictedWeeklyCalorieDeficit: number;
   timeToGoal?: number;
   confidence: number;
@@ -188,6 +192,41 @@ export interface BodyRecompositionPrediction {
   netWeightChange: number;
   bodyCompositionScore: number;
   recommendations: string[];
+}
+
+// ────────────────────────────────────────────────────────────
+// 身体测量时序 + 预测校准
+// ────────────────────────────────────────────────────────────
+
+// 一次身体测量记录（体重必填，体脂/腰围可选）
+export interface BodyMeasurement {
+  id: string;
+  date: string;          // YYYY-MM-DD
+  weight: number;        // kg
+  bodyFat?: number;      // %
+  waist?: number;        // cm
+  note?: string;
+  createdAt: number;
+}
+
+// 预测快照：用于事后对比“预测 vs 实际”
+export interface PredictionSnapshot {
+  id: string;
+  date: string;
+  weightAtPrediction: number;
+  bodyFatAtPrediction?: number;
+  predictedWeeklyFatLoss: number;     // kg/周
+  predictedMonthlyMuscleGain: number; // kg/月
+  createdAt: number;
+}
+
+// 个体校准状态：用实际结果反推的修正系数
+export interface CalibrationState {
+  tdeeFactor: number;         // 实际 TDEE / 公式 TDEE
+  muscleGainFactor: number;   // 实际增肌 / 公式增肌
+  sampleDays: number;         // 参与校准的天数
+  confidence: number;         // 0-1
+  updatedAt: number;
 }
 
 // ────────────────────────────────────────────────────────────

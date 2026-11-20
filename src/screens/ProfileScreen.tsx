@@ -242,6 +242,16 @@ export default function ProfileScreen({ navigation }: any) {
             titleStyle={styles.listTitle}
             descriptionStyle={styles.listDesc}
           />
+          <List.Item
+            title="体重记录与校准"
+            description="定期记录体重，让预测越来越准"
+            left={props => <List.Icon {...props} icon="scale-bathroom" color={theme.colors.success} />}
+            right={props => <List.Icon {...props} icon="chevron-right" color={theme.colors.textTertiary} />}
+            onPress={() => navigation.navigate('BodyTrack')}
+            style={styles.listItem}
+            titleStyle={styles.listTitle}
+            descriptionStyle={styles.listDesc}
+          />
         </List.Section>
       </Card>
 
