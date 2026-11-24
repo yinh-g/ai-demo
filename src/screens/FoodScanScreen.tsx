@@ -4,7 +4,8 @@ import { Text, Card, Button, Chip, TextInput, IconButton, Divider } from 'react-
 import * as ImagePicker from 'expo-image-picker';
 import { useAppStore } from '../store';
 import { theme, cardStyle, pagePadding } from '../theme';
-import { analyzeFoodPhoto, sumNutrition } from '../services/food/analyzeFood';
+import { analyzeFood, AnalyzeFoodParams, sumNutrition } from '../services/food/analyzeFood';
+import { useAudioRecorder, RecordingPresets, AudioModule, useAudioRecorderState, setAudioModeAsync } from 'expo-audio';
 import { FoodItem, FoodLog, MealType } from '../types';
 
 const MEAL_OPTIONS: { value: MealType; label: string }[] = [
@@ -30,7 +31,14 @@ function round1(n: number): number {
 export default function FoodScanScreen({ navigation }: any) {
   const addFoodLog = useAppStore((s) => s.addFoodLog);
 
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(audioRecorder);
+  const isRecording = recorderState.isRecording;
+
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [textInput, setTextInput] = useState('');
+  const [correctionText, setCorrectionText] = useState('');
+  const [transcript, setTranscript] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [items, setItems] = useState<FoodItem[]>([]);
   const [amountTexts, setAmountTexts] = useState<string[]>([]);
@@ -38,16 +46,20 @@ export default function FoodScanScreen({ navigation }: any) {
   const [mealType, setMealType] = useState<MealType>(inferMealType());
   const [error, setError] = useState<string | null>(null);
 
-  const runAnalyze = async (uri: string) => {
+  const runAnalyze = async (params: AnalyzeFoodParams, keepItems = false) => {
     setAnalyzing(true);
     setError(null);
-    setItems([]);
-    setNote('');
+    if (!keepItems) {
+      setItems([]);
+      setNote('');
+      setTranscript('');
+    }
     try {
-      const result = await analyzeFoodPhoto(uri);
+      const result = await analyzeFood(params);
       setItems(result.items);
       setAmountTexts(result.items.map((i) => String(i.amount)));
       setNote(result.note || '');
+      if (result.transcript) setTranscript(result.transcript);
     } catch (e) {
       setError(e instanceof Error ? e.message : '识别失败，请重试');
     } finally {
@@ -60,7 +72,7 @@ export default function FoodScanScreen({ navigation }: any) {
     const uri = result.assets[0]?.uri;
     if (!uri) return;
     setPhotoUri(uri);
-    runAnalyze(uri);
+    runAnalyze({ photoUri: uri });
   };
 
   const takePhoto = async () => {
@@ -116,6 +128,63 @@ export default function FoodScanScreen({ navigation }: any) {
   const removeItem = (index: number) => {
     setItems((prev) => prev.filter((_, i) => i !== index));
     setAmountTexts((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const updateName = (index: number, name: string) => {
+    setItems((prev) => prev.map((it, i) => (i === index ? { ...it, name } : it)));
+  };
+
+  const handleTextAnalyze = () => {
+    if (!textInput.trim()) {
+      Alert.alert('提示', '请输入食物描述，例如「一碗牛肉面，加了一个卤蛋」');
+      return;
+    }
+    setPhotoUri(null);
+    runAnalyze({ text: textInput });
+  };
+
+  // AI 重新校准：以当前结果为基础，按用户补充说明重新估算
+  const handleRecalibrate = () => {
+    if (items.length === 0) return;
+    if (!correctionText.trim()) {
+      Alert.alert('提示', '请补充说明哪里不准，例如「这是两人份」「米饭其实是 300g」');
+      return;
+    }
+    runAnalyze(
+      { previousItems: items, text: correctionText, photoUri: photoUri || undefined },
+      true
+    );
+    setCorrectionText('');
+  };
+
+  const startRecording = async () => {
+    try {
+      const perm = await AudioModule.requestRecordingPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('需要权限', '请允许使用麦克风以语音输入');
+        return;
+      }
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+    } catch (e) {
+      Alert.alert('无法录音', e instanceof Error ? e.message : '请稍后重试');
+    }
+  };
+
+  const stopRecording = async () => {
+    try {
+      await audioRecorder.stop();
+      const uri = audioRecorder.uri;
+      if (!uri) {
+        Alert.alert('提示', '没有录到声音，请重试');
+        return;
+      }
+      setPhotoUri(null);
+      runAnalyze({ audioUri: uri });
+    } catch (e) {
+      Alert.alert('录音失败', e instanceof Error ? e.message : '请稍后重试');
+    }
   };
 
   const handleSave = () => {
@@ -191,9 +260,46 @@ export default function FoodScanScreen({ navigation }: any) {
                 textColor={theme.colors.primary}
                 labelStyle={styles.actionLabel}
               >
-                相册选择
+                相册
+              </Button>
+              <Button
+                mode={isRecording ? 'contained' : 'outlined'}
+                icon={isRecording ? 'stop-circle' : 'microphone'}
+                onPress={isRecording ? stopRecording : startRecording}
+                style={[styles.actionButton, isRecording && { backgroundColor: theme.colors.danger }]}
+                textColor={isRecording ? '#fff' : theme.colors.primary}
+                labelStyle={styles.actionLabel}
+              >
+                {isRecording ? '停止' : '语音'}
               </Button>
             </View>
+          </Card.Content>
+        </Card>
+
+        {/* 文字描述输入 */}
+        <Card style={styles.card}>
+          <Card.Content>
+            <Text style={styles.sectionTitle}>或用文字描述</Text>
+            <TextInput
+              value={textInput}
+              onChangeText={setTextInput}
+              mode="outlined"
+              multiline
+              placeholder="例如：一碗牛肉面，加了一个卤蛋，一杯无糖豆浆"
+              style={styles.textArea}
+              outlineColor={theme.colors.border}
+              activeOutlineColor={theme.colors.primary}
+            />
+            <Button
+              mode="outlined"
+              icon="text-box-check"
+              onPress={handleTextAnalyze}
+              style={styles.textButton}
+              textColor={theme.colors.primary}
+              labelStyle={styles.actionLabel}
+            >
+              用文字识别
+            </Button>
           </Card.Content>
         </Card>
 
@@ -215,7 +321,7 @@ export default function FoodScanScreen({ navigation }: any) {
               <IconButton icon="alert-circle-outline" size={40} iconColor={theme.colors.danger} />
               <Text style={styles.errorText}>{error}</Text>
               {photoUri && (
-                <Button mode="text" onPress={() => runAnalyze(photoUri)} textColor={theme.colors.primary}>
+                <Button mode="text" onPress={() => runAnalyze({ photoUri })} textColor={theme.colors.primary}>
                   重试
                 </Button>
               )}
@@ -250,8 +356,10 @@ export default function FoodScanScreen({ navigation }: any) {
               <Card.Content>
                 <View style={styles.resultHeader}>
                   <Text style={styles.sectionTitle}>识别结果</Text>
-                  <Text style={styles.resultHint}>份量可修改</Text>
+                  <Text style={styles.resultHint}>名称和份量都可修改</Text>
                 </View>
+
+                {!!transcript && <Text style={styles.transcript}>语音识别：{transcript}</Text>}
 
                 {items.map((item, index) => (
                   <View key={`${item.name}-${index}`}>
@@ -259,7 +367,16 @@ export default function FoodScanScreen({ navigation }: any) {
                     <View style={styles.itemRow}>
                       <View style={styles.itemInfo}>
                         <View style={styles.itemNameRow}>
-                          <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
+                          <TextInput
+                            value={item.name}
+                            onChangeText={(t) => updateName(index, t)}
+                            mode="flat"
+                            dense
+                            style={styles.nameInput}
+                            underlineColor="transparent"
+                            activeUnderlineColor={theme.colors.primary}
+                            textColor={theme.colors.text}
+                          />
                           {item.confidence < 0.6 && (
                             <Chip compact style={styles.lowConfChip} textStyle={styles.lowConfText}>
                               待确认
@@ -300,6 +417,29 @@ export default function FoodScanScreen({ navigation }: any) {
                 ))}
 
                 {!!note && <Text style={styles.note}>{note}</Text>}
+
+                <Divider style={[styles.divider, { marginTop: 12 }]} />
+                <Text style={styles.correctionHint}>识别不准？补充说明后可让 AI 重新估算</Text>
+                <TextInput
+                  value={correctionText}
+                  onChangeText={setCorrectionText}
+                  mode="outlined"
+                  multiline
+                  placeholder="例如：这是两人份 / 米饭其实是 300g / 这份是水煮不是油炒"
+                  style={styles.textArea}
+                  outlineColor={theme.colors.border}
+                  activeOutlineColor={theme.colors.primary}
+                />
+                <Button
+                  mode="outlined"
+                  icon="auto-fix"
+                  onPress={handleRecalibrate}
+                  style={styles.recalibButton}
+                  textColor={theme.colors.primary}
+                  labelStyle={styles.actionLabel}
+                >
+                  AI 重新校准
+                </Button>
               </Card.Content>
             </Card>
 
@@ -508,6 +648,42 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.textTertiary,
     fontStyle: 'italic',
+  },
+  textArea: {
+    backgroundColor: '#fff',
+    minHeight: 74,
+    fontSize: 14,
+  },
+  textButton: {
+    marginTop: 10,
+    borderRadius: 10,
+    borderColor: theme.colors.primary,
+  },
+  nameInput: {
+    flex: 1,
+    height: 34,
+    fontSize: 14,
+    backgroundColor: 'transparent',
+    paddingHorizontal: 0,
+  },
+  correctionHint: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  recalibButton: {
+    marginTop: 8,
+    borderRadius: 10,
+    borderColor: theme.colors.primary,
+  },
+  transcript: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    backgroundColor: theme.colors.primaryLight,
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 10,
   },
   summaryCard: {
     backgroundColor: theme.colors.primaryLight,

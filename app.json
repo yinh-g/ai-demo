@@ -45,7 +45,14 @@
           "microphonePermission": false
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "允许 $(PRODUCT_NAME) 使用麦克风以语音记录饮食",
+          "recordAudioAndroid": true
+        }
+      ]
     ],
     "extra": {
       "supabase": {
