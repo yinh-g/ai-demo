@@ -1,7 +1,9 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Exercise, WorkoutPlan, WorkoutRecord, UserProfile, CardioActivity, WorkoutType, DailyActivity, FoodLog, NutritionFacts, BodyMeasurement, PredictionSnapshot, CalibrationState } from '../types';
+import { Exercise, WorkoutPlan, WorkoutRecord, UserProfile, CardioActivity, WorkoutType, DailyActivity, FoodLog, NutritionFacts, BodyMeasurement, PredictionSnapshot, CalibrationState, BodyFatSample, BodyFatCalibration } from '../types';
+import { fuseBodyFat } from '../utils/bodyFatFusion';
+import { estimateBodyFatFromWaist } from '../utils/bodyFatEstimators';
 
 // 近 N 天饮食营养统计
 export interface DailyNutrition {
@@ -19,6 +21,80 @@ export interface NutritionStats {
   avgCarbs: number;      // g
   avgFat: number;        // g
   daily: DailyNutrition[]; // 按日期倒序
+}
+
+// ── 多源体脂样本工具 ──
+const MAX_BODY_FAT_SAMPLES = 500;
+
+// 由身体测量自动派生的样本 id 前缀：便于同日覆盖、随测量一起删除
+const derivedPrefix = (date: string) => `bfm-${date}-`;
+
+function sortSamples(list: BodyFatSample[]): BodyFatSample[] {
+  return [...list].sort((a, b) => {
+    if (a.date === b.date) return b.createdAt - a.createdAt;
+    return a.date < b.date ? 1 : -1;
+  });
+}
+
+function dedupeSamples(list: BodyFatSample[]): BodyFatSample[] {
+  const byId = new Map<string, BodyFatSample>();
+  list.forEach((s) => {
+    const cur = byId.get(s.id);
+    if (!cur || s.createdAt >= cur.createdAt) byId.set(s.id, s);
+  });
+  return sortSamples(Array.from(byId.values())).slice(0, MAX_BODY_FAT_SAMPLES);
+}
+
+// 从一条身体测量派生体脂样本：手动/体脂秤值 + 腰围推算
+function deriveSamplesFromMeasurement(
+  m: BodyMeasurement,
+  profile: UserProfile | null
+): BodyFatSample[] {
+  const out: BodyFatSample[] = [];
+  if (m.bodyFat !== undefined && Number.isFinite(m.bodyFat)) {
+    const source = m.bodyFatSource ?? 'scale';
+    out.push({
+      id: `${derivedPrefix(m.date)}${source}`,
+      date: m.date,
+      value: m.bodyFat,
+      source,
+      createdAt: m.createdAt,
+    });
+  }
+  if (m.waist !== undefined && profile) {
+    const est = estimateBodyFatFromWaist({
+      waistCm: m.waist,
+      heightCm: profile.height,
+      gender: profile.gender,
+      age: profile.age,
+    });
+    if (est !== null) {
+      out.push({
+        id: `${derivedPrefix(m.date)}waist`,
+        date: m.date,
+        value: est,
+        source: 'waist',
+        createdAt: m.createdAt,
+        note: `腰围 ${m.waist}cm 推算`,
+      });
+    }
+  }
+  return out;
+}
+
+// 融合结果回写 userProfile.bodyFat，让预测自动用上更可信的体脂
+function withFusedBodyFat(
+  profile: UserProfile | null,
+  samples: BodyFatSample[],
+  cal: BodyFatCalibration | null
+): UserProfile | null {
+  if (!profile) return profile;
+  const fused = fuseBodyFat({ samples, calibration: cal });
+  if (!fused) return profile;
+  if (profile.bodyFat !== undefined && Math.abs(profile.bodyFat - fused.value) < 0.05) {
+    return profile;
+  }
+  return { ...profile, bodyFat: fused.value, updatedAt: Date.now() };
 }
 
 interface AppState {
@@ -83,6 +159,16 @@ interface AppState {
   getLatestMeasurement: () => BodyMeasurement | undefined;
   addPredictionSnapshot: (s: PredictionSnapshot) => void;
   setCalibration: (c: CalibrationState | null) => void;
+
+  // 多源体脂（体脂秤/手动/InBody/腰围/拍照）
+  bodyFatSamples: BodyFatSample[];
+  bodyFatCalibration: BodyFatCalibration | null;
+  addBodyFatSample: (s: BodyFatSample) => void;
+  addBodyFatSamples: (list: BodyFatSample[]) => void;
+  deleteBodyFatSample: (id: string) => void;
+  setBodyFatCalibration: (c: BodyFatCalibration | null) => void;
+  // 老数据迁移：把历史身体测量里的体脂/腰围补成多源样本（幂等）
+  backfillBodyFatSamples: () => void;
 
   // 云同步状态
   syncStatus: 'idle' | 'syncing' | 'offline' | 'error';
@@ -343,14 +429,24 @@ export const useAppStore = create<AppState>()(
       bodyMeasurements: [],
       predictionSnapshots: [],
       calibration: null,
+      bodyFatSamples: [],
+      bodyFatCalibration: null,
       addBodyMeasurement: (m) => set((state) => {
         // 同一天只保留一条（重复记录则覆盖）
         const rest = state.bodyMeasurements.filter((x) => x.date !== m.date);
         const next = [...rest, m];
         const newestDate = next.reduce((max, x) => (x.date > max ? x.date : max), '');
 
+        // 同步派生多源体脂样本（同日期覆盖）
+        const prefix = derivedPrefix(m.date);
+        const kept = state.bodyFatSamples.filter((s) => !s.id.startsWith(prefix));
+        const bodyFatSamples = dedupeSamples([
+          ...deriveSamplesFromMeasurement(m, state.userProfile),
+          ...kept,
+        ]);
+
         // 若新增的是最新一条，同步更新 userProfile 的体重/体脂
-        const userProfile = state.userProfile && m.date >= newestDate
+        const baseProfile = state.userProfile && m.date >= newestDate
           ? {
               ...state.userProfile,
               weight: m.weight,
@@ -359,11 +455,24 @@ export const useAppStore = create<AppState>()(
             }
           : state.userProfile;
 
-        return { bodyMeasurements: next, userProfile };
+        return {
+          bodyMeasurements: next,
+          bodyFatSamples,
+          userProfile: withFusedBodyFat(baseProfile, bodyFatSamples, state.bodyFatCalibration),
+        };
       }),
-      deleteBodyMeasurement: (id) => set((state) => ({
-        bodyMeasurements: state.bodyMeasurements.filter((x) => x.id !== id),
-      })),
+      deleteBodyMeasurement: (id) => set((state) => {
+        const target = state.bodyMeasurements.find((x) => x.id === id);
+        const prefix = target ? derivedPrefix(target.date) : null;
+        const bodyFatSamples = prefix
+          ? state.bodyFatSamples.filter((s) => !s.id.startsWith(prefix))
+          : state.bodyFatSamples;
+        return {
+          bodyMeasurements: state.bodyMeasurements.filter((x) => x.id !== id),
+          bodyFatSamples,
+          userProfile: withFusedBodyFat(state.userProfile, bodyFatSamples, state.bodyFatCalibration),
+        };
+      }),
       getLatestMeasurement: () => {
         const list = get().bodyMeasurements;
         if (list.length === 0) return undefined;
@@ -376,6 +485,49 @@ export const useAppStore = create<AppState>()(
         return { predictionSnapshots: next };
       }),
       setCalibration: (c) => set({ calibration: c }),
+
+      // ── 多源体脂 ──
+      addBodyFatSample: (s) => set((state) => {
+        const bodyFatSamples = dedupeSamples([
+          s,
+          ...state.bodyFatSamples.filter((x) => x.id !== s.id),
+        ]);
+        return {
+          bodyFatSamples,
+          userProfile: withFusedBodyFat(state.userProfile, bodyFatSamples, state.bodyFatCalibration),
+        };
+      }),
+      addBodyFatSamples: (list) => set((state) => {
+        if (list.length === 0) return {};
+        const bodyFatSamples = dedupeSamples([...list, ...state.bodyFatSamples]);
+        return {
+          bodyFatSamples,
+          userProfile: withFusedBodyFat(state.userProfile, bodyFatSamples, state.bodyFatCalibration),
+        };
+      }),
+      deleteBodyFatSample: (id) => set((state) => {
+        const bodyFatSamples = state.bodyFatSamples.filter((x) => x.id !== id);
+        return {
+          bodyFatSamples,
+          userProfile: withFusedBodyFat(state.userProfile, bodyFatSamples, state.bodyFatCalibration),
+        };
+      }),
+      setBodyFatCalibration: (c) => set((state) => ({
+        bodyFatCalibration: c,
+        userProfile: withFusedBodyFat(state.userProfile, state.bodyFatSamples, c),
+      })),
+      backfillBodyFatSamples: () => set((state) => {
+        const existing = new Set(state.bodyFatSamples.map((s) => s.id));
+        const missing = state.bodyMeasurements
+          .flatMap((m) => deriveSamplesFromMeasurement(m, state.userProfile))
+          .filter((s) => !existing.has(s.id));
+        if (missing.length === 0) return {};
+        const bodyFatSamples = dedupeSamples([...missing, ...state.bodyFatSamples]);
+        return {
+          bodyFatSamples,
+          userProfile: withFusedBodyFat(state.userProfile, bodyFatSamples, state.bodyFatCalibration),
+        };
+      }),
 
       // 云同步状态（不持久化）
       syncStatus: 'idle',
@@ -403,6 +555,8 @@ export const useAppStore = create<AppState>()(
         bodyMeasurements: state.bodyMeasurements,
         predictionSnapshots: state.predictionSnapshots,
         calibration: state.calibration,
+        bodyFatSamples: state.bodyFatSamples,
+        bodyFatCalibration: state.bodyFatCalibration,
       })
     }
   )

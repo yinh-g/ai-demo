@@ -14,6 +14,8 @@ const SYNC_FIELDS = [
   'bodyMeasurements',
   'predictionSnapshots',
   'calibration',
+  'bodyFatSamples',
+  'bodyFatCalibration',
 ] as const;
 
 const PUSH_DEBOUNCE_MS = 3000;
@@ -266,7 +268,39 @@ function mergeCloudToLocal(cloudData: Record<string, unknown>): void {
     else patch.calibration = (cloud.updatedAt || 0) > (local.updatedAt || 0) ? cloud : local;
   }
 
-  const mergedFields = new Set(['exercises', 'bodyMeasurements', 'predictionSnapshots', 'calibration']);
+  // 多源体脂样本：按 id 并集，同 id 保留 createdAt 较新者
+  if (cloudData.bodyFatSamples !== undefined) {
+    const cloud = (cloudData.bodyFatSamples as any[]) || [];
+    const byId = new Map<string, any>();
+    [...cloud, ...(store.bodyFatSamples as any[])].forEach((s) => {
+      const cur = byId.get(s.id);
+      if (!cur || (s.createdAt || 0) >= (cur.createdAt || 0)) byId.set(s.id, s);
+    });
+    patch.bodyFatSamples = Array.from(byId.values())
+      .sort((a, b) => {
+        if (a.date === b.date) return (b.createdAt || 0) - (a.createdAt || 0);
+        return a.date < b.date ? 1 : -1;
+      })
+      .slice(0, 500);
+  }
+
+  // 体脂校准：取 updatedAt 较新者
+  if (cloudData.bodyFatCalibration !== undefined) {
+    const cloud = cloudData.bodyFatCalibration as any;
+    const local = store.bodyFatCalibration as any;
+    if (!local) patch.bodyFatCalibration = cloud;
+    else if (!cloud) patch.bodyFatCalibration = local;
+    else patch.bodyFatCalibration = (cloud.updatedAt || 0) > (local.updatedAt || 0) ? cloud : local;
+  }
+
+  const mergedFields = new Set([
+    'exercises',
+    'bodyMeasurements',
+    'predictionSnapshots',
+    'calibration',
+    'bodyFatSamples',
+    'bodyFatCalibration',
+  ]);
   SYNC_FIELDS.forEach((k) => {
     if (!mergedFields.has(k) && cloudData[k] !== undefined) patch[k] = cloudData[k];
   });

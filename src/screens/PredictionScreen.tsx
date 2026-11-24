@@ -6,11 +6,12 @@ import { predictMuscleGrowth, generateOptimizationSuggestions } from '../utils/p
 import { predictBodyRecomposition } from '../utils/fatLossPrediction';
 import { MuscleGrowthPrediction, BodyRecompositionPrediction, PredictionSnapshot } from '../types';
 import { getWeightTrend } from '../utils/bodyTrend';
+import { fuseBodyFat } from '../utils/bodyFatFusion';
 
 type PredictionTab = 'muscle' | 'fatloss' | 'recomposition';
 
 export default function PredictionScreen({ navigation }: any) {
-  const { userProfile, workoutRecords, dailyActivities, foodLogs, getNutritionStats, bodyMeasurements, calibration, addPredictionSnapshot } = useAppStore();
+  const { userProfile, workoutRecords, dailyActivities, foodLogs, getNutritionStats, bodyMeasurements, calibration, addPredictionSnapshot, bodyFatSamples, bodyFatCalibration } = useAppStore();
   const [activeTab, setActiveTab] = useState<PredictionTab>('recomposition');
   const [musclePrediction, setMusclePrediction] = useState<MuscleGrowthPrediction | null>(null);
   const [recomposition, setRecomposition] = useState<BodyRecompositionPrediction | null>(null);
@@ -60,6 +61,10 @@ export default function PredictionScreen({ navigation }: any) {
       const trendWeight = getWeightTrend(bodyMeasurements);
       const effectiveWeight = trendWeight ?? userProfile.weight;
 
+      // 体脂优先用多源融合值（体脂秤/InBody/拍照加权），无样本时回退到手填值
+      const fusedBodyFat = fuseBodyFat({ samples: bodyFatSamples, calibration: bodyFatCalibration });
+      const effectiveBodyFat = fusedBodyFat?.value ?? userProfile.bodyFat;
+
       const proteinPerKg = usingFood && effectiveWeight > 0
         ? Math.round((nutrition.avgProtein / effectiveWeight) * 10) / 10
         : userProfile.proteinIntake;
@@ -101,7 +106,7 @@ export default function PredictionScreen({ navigation }: any) {
         age: userProfile.age,
         gender: userProfile.gender,
         height: userProfile.height,
-        bodyFat: userProfile.bodyFat,
+        bodyFat: effectiveBodyFat,
         weeklyCardioMinutes,
         weeklyCardioCalories: weeklyCardioCalories + Math.round(dailyActiveCalories * 7),
         weeklyStrengthMinutes,
@@ -122,7 +127,7 @@ export default function PredictionScreen({ navigation }: any) {
           id: `${today}-${Date.now()}`,
           date: today,
           weightAtPrediction: effectiveWeight,
-          bodyFatAtPrediction: userProfile.bodyFat,
+          bodyFatAtPrediction: effectiveBodyFat,
           predictedWeeklyFatLoss: recompResult.fatLoss.predictedWeeklyFatLoss,
           predictedMonthlyMuscleGain: recompResult.muscleGain.predictedMonthlyGain,
           createdAt: Date.now(),
@@ -130,7 +135,7 @@ export default function PredictionScreen({ navigation }: any) {
         addPredictionSnapshot(snapshot);
       }
     }
-  }, [userProfile, workoutRecords, dailyActivities, foodLogs, bodyMeasurements, calibration]);
+  }, [userProfile, workoutRecords, dailyActivities, foodLogs, bodyMeasurements, calibration, bodyFatSamples, bodyFatCalibration]);
 
   if (!userProfile) {
     return (

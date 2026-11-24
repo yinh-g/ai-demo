@@ -31,6 +31,7 @@ import StatsDetailScreen from './src/screens/StatsDetailScreen';
 import FoodScanScreen from './src/screens/FoodScanScreen';
 import FoodHistoryScreen from './src/screens/FoodHistoryScreen';
 import BodyTrackScreen from './src/screens/BodyTrackScreen';
+import BodyFatScreen from './src/screens/BodyFatScreen';
 
 const tabIcons: Record<string, { active: string; inactive: string }> = {
   Home: { active: 'home', inactive: 'home-outline' },
@@ -110,6 +111,17 @@ function MainTabs() {
 function AppContent() {
   const { authUser, setAuthUser, isGuest } = useAppStore();
   const [isReady, setIsReady] = useState(false);
+
+  // 老用户迁移：把历史身体测量记录里的体脂/腰围补建成多源体脂样本
+  useEffect(() => {
+    const backfill = () => useAppStore.getState().backfillBodyFatSamples();
+    if (useAppStore.persist.hasHydrated()) {
+      backfill();
+      return;
+    }
+    const unsub = useAppStore.persist.onFinishHydration(backfill);
+    return unsub;
+  }, []);
 
   useEffect(() => {
     let authUnsub: (() => void) | null = null;
@@ -222,6 +234,7 @@ function AppContent() {
               <Stack.Screen name="FoodScan" component={FoodScanScreen} options={{ title: '拍照记饮食' }} />
               <Stack.Screen name="FoodHistory" component={FoodHistoryScreen} options={{ title: '饮食记录' }} />
               <Stack.Screen name="BodyTrack" component={BodyTrackScreen} options={{ title: '体重与校准' }} />
+              <Stack.Screen name="BodyFat" component={BodyFatScreen} options={{ title: '体脂多源分析' }} />
             </Stack.Navigator>
           </NavigationContainer>
         </PaperProvider>

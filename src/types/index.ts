@@ -198,12 +198,38 @@ export interface BodyRecompositionPrediction {
 // 身体测量时序 + 预测校准
 // ────────────────────────────────────────────────────────────
 
+// 体脂来源：inbody 锚点 > scale 体脂秤 > manual 手动 > waist 腰围反推 > photo 拍照（低权重）
+export type BodyFatSource = 'scale' | 'manual' | 'inbody' | 'photo' | 'waist';
+
+// 单次体脂样本（多源）
+export interface BodyFatSample {
+  id: string;
+  date: string;      // YYYY-MM-DD
+  value: number;     // %
+  source: BodyFatSource;
+  deviceId?: string; // 区分不同体脂秤
+  photoUri?: string; // 拍照估算时的照片（本地或远程）
+  note?: string;     // 备注（如“晨起空腹”）
+  createdAt: number;
+}
+
+// 体脂多源校准状态
+export interface BodyFatCalibration {
+  anchorValue?: number;  // InBody/DEXA 等锚点值
+  anchorDate?: string;
+  scaleBias: number;     // 体脂秤系统偏差
+  photoBias: number;     // 拍照估算系统偏差
+  waistBias?: number;    // 腰围推算系统偏差
+  updatedAt: number;
+}
+
 // 一次身体测量记录（体重必填，体脂/腰围可选）
 export interface BodyMeasurement {
   id: string;
   date: string;          // YYYY-MM-DD
   weight: number;        // kg
   bodyFat?: number;      // %
+  bodyFatSource?: BodyFatSource; // 该体脂值的来源，默认 scale
   waist?: number;        // cm
   note?: string;
   createdAt: number;

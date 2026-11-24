@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView, Alert, useWindowDimensions } from 'react-native';
-import { Text, Card, Button, TextInput, IconButton, Divider, Switch } from 'react-native-paper';
+import { Text, Card, Button, TextInput, IconButton, Divider, Switch, SegmentedButtons } from 'react-native-paper';
 import { LineChart } from 'react-native-chart-kit';
 import { useAppStore } from '../store';
 import { theme, cardStyle, pagePadding } from '../theme';
 import { getWeightTrend, getWeightSeries, getWeightChange } from '../utils/bodyTrend';
 import { buildCalibration, computePredictionError } from '../utils/calibration';
 import { calculateBMR } from '../utils/fatLossPrediction';
+import { fuseBodyFat } from '../utils/bodyFatFusion';
 import { scheduleWeightReminder, cancelWeightReminder, isReminderScheduled } from '../services/notifications';
 
 function formatDate(dateStr: string): string {
@@ -17,7 +18,7 @@ function formatDate(dateStr: string): string {
   return `${d.getMonth() + 1}月${d.getDate()}日 · ${weekdays[d.getDay()]}`;
 }
 
-export default function BodyTrackScreen(_props: any) {
+export default function BodyTrackScreen({ navigation }: any) {
   const {
     userProfile,
     bodyMeasurements,
@@ -28,17 +29,24 @@ export default function BodyTrackScreen(_props: any) {
     predictionSnapshots,
     setCalibration,
     foodLogs,
+    bodyFatSamples,
+    bodyFatCalibration,
   } = useAppStore();
 
   const { width: screenWidth } = useWindowDimensions();
   const [weightInput, setWeightInput] = useState('');
   const [bodyFatInput, setBodyFatInput] = useState('');
+  const [bodyFatSourceInput, setBodyFatSourceInput] = useState<'scale' | 'manual' | 'inbody'>('scale');
   const [waistInput, setWaistInput] = useState('');
   const [reminderOn, setReminderOn] = useState(false);
 
   const trend = getWeightTrend(bodyMeasurements);
   const series = useMemo(() => getWeightSeries(bodyMeasurements, 30), [bodyMeasurements]);
   const change = getWeightChange(bodyMeasurements, 30);
+  const fusedBodyFat = useMemo(
+    () => fuseBodyFat({ samples: bodyFatSamples, calibration: bodyFatCalibration }),
+    [bodyFatSamples, bodyFatCalibration]
+  );
 
   useEffect(() => {
     isReminderScheduled().then(setReminderOn).catch(() => {});
@@ -84,6 +92,7 @@ export default function BodyTrackScreen(_props: any) {
       date: new Date().toISOString().split('T')[0],
       weight: Math.round(w * 10) / 10,
       bodyFat: bf !== undefined ? Math.round(bf * 10) / 10 : undefined,
+      bodyFatSource: bf !== undefined ? bodyFatSourceInput : undefined,
       waist: waist !== undefined && Number.isFinite(waist) ? waist : undefined,
       createdAt: Date.now(),
     });
@@ -161,6 +170,41 @@ export default function BodyTrackScreen(_props: any) {
         </Card.Content>
       </Card>
 
+      {/* 融合体脂（多源） */}
+      <Card style={styles.card}>
+        <Card.Content>
+          <View style={styles.bfRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.bfLabel}>融合体脂（多源加权）</Text>
+              <View style={styles.bfValueRow}>
+                <Text style={styles.bfValue}>
+                  {fusedBodyFat ? `${fusedBodyFat.value.toFixed(1)}%` : '--'}
+                </Text>
+                {fusedBodyFat && (
+                  <Text style={styles.bfSigma}>
+                    ±{fusedBodyFat.sigma.toFixed(1)} · {fusedBodyFat.sampleCount} 个样本
+                  </Text>
+                )}
+              </View>
+              <Text style={styles.bfHint}>
+                {fusedBodyFat
+                  ? '已按来源可信度与时间衰减加权，拍照权重最低'
+                  : '记录体脂秤 / InBody / 拍照数据后自动融合'}
+              </Text>
+            </View>
+            <Button
+              mode="outlined"
+              compact
+              onPress={() => navigation?.navigate('BodyFat')}
+              style={styles.bfBtn}
+              labelStyle={styles.bfBtnLabel}
+            >
+              详情
+            </Button>
+          </View>
+        </Card.Content>
+      </Card>
+
       {/* 记录表单 */}
       <Card style={styles.card}>
         <Card.Content>
@@ -187,6 +231,17 @@ export default function BodyTrackScreen(_props: any) {
               activeOutlineColor={theme.colors.primary}
             />
           </View>
+          <SegmentedButtons
+            value={bodyFatSourceInput}
+            onValueChange={(v) => setBodyFatSourceInput(v as 'scale' | 'manual' | 'inbody')}
+            buttons={[
+              { value: 'scale', label: '体脂秤' },
+              { value: 'manual', label: '手动' },
+              { value: 'inbody', label: 'InBody' },
+            ]}
+            density="small"
+            style={styles.sourceSegmented}
+          />
           <TextInput
             label="腰围 (cm) 可选"
             value={waistInput}
@@ -384,6 +439,44 @@ const styles = StyleSheet.create({
   formRow: {
     flexDirection: 'row',
     gap: 10,
+  },
+  sourceSegmented: {
+    marginTop: 10,
+  },
+  bfRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  bfLabel: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+  },
+  bfValueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginTop: 4,
+  },
+  bfValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: theme.colors.text,
+  },
+  bfSigma: {
+    fontSize: 12,
+    color: theme.colors.textSecondary,
+    marginLeft: 8,
+  },
+  bfHint: {
+    fontSize: 11,
+    color: theme.colors.textTertiary,
+    marginTop: 4,
+  },
+  bfBtn: {
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  bfBtnLabel: {
+    fontSize: 12,
   },
   formInput: {
     flex: 1,

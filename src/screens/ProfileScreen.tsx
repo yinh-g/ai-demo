@@ -252,6 +252,17 @@ export default function ProfileScreen({ navigation }: any) {
             titleStyle={styles.listTitle}
             descriptionStyle={styles.listDesc}
           />
+          <Divider style={styles.listDivider} />
+          <List.Item
+            title="体脂多源分析"
+            description="体脂秤 / InBody / 拍照综合估算"
+            left={props => <List.Icon {...props} icon="percent" color={theme.colors.info} />}
+            right={props => <List.Icon {...props} icon="chevron-right" color={theme.colors.textTertiary} />}
+            onPress={() => navigation.navigate('BodyFat')}
+            style={styles.listItem}
+            titleStyle={styles.listTitle}
+            descriptionStyle={styles.listDesc}
+          />
         </List.Section>
       </Card>
 
