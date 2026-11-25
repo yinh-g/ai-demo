@@ -41,7 +41,7 @@
         "expo-image-picker",
         {
           "photosPermission": "允许 $(PRODUCT_NAME) 访问相册以选择食物照片",
-          "cameraPermission": "允许 $(PRODUCT_NAME) 使用相机拍摄食物照片",
+          "cameraPermission": "允许 $(PRODUCT_NAME) 使用相机拍摄食物照片或扫描食品条形码",
           "microphonePermission": false
         }
       ],
@@ -51,6 +51,13 @@
         {
           "microphonePermission": "允许 $(PRODUCT_NAME) 使用麦克风以语音记录饮食",
           "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "允许 $(PRODUCT_NAME) 使用相机扫描食品条形码或拍摄食物照片",
+          "microphonePermission": false
         }
       ]
     ],

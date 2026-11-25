@@ -5,6 +5,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAppStore } from '../store';
 import { theme, cardStyle, pagePadding } from '../theme';
 import { analyzeFood, AnalyzeFoodParams, sumNutrition } from '../services/food/analyzeFood';
+import { lookupBarcode, productToFoodItem } from '../services/food/barcodeLookup';
+import BarcodeScanDialog from '../components/BarcodeScanDialog';
 import { useAudioRecorder, RecordingPresets, AudioModule, useAudioRecorderState, setAudioModeAsync } from 'expo-audio';
 import { FoodItem, FoodLog, MealType } from '../types';
 
@@ -45,6 +47,8 @@ export default function FoodScanScreen({ navigation }: any) {
   const [note, setNote] = useState('');
   const [mealType, setMealType] = useState<MealType>(inferMealType());
   const [error, setError] = useState<string | null>(null);
+  const [barcodeVisible, setBarcodeVisible] = useState(false);
+  const [barcodeLoading, setBarcodeLoading] = useState(false);
 
   const runAnalyze = async (params: AnalyzeFoodParams, keepItems = false) => {
     setAnalyzing(true);
@@ -141,6 +145,41 @@ export default function FoodScanScreen({ navigation }: any) {
     }
     setPhotoUri(null);
     runAnalyze({ text: textInput });
+  };
+
+  // 条码查询：直接追加入当前结果列表，份量仍可按克数修改（营养会等比缩放）
+  const handleBarcodeDetected = async (code: string) => {
+    setBarcodeVisible(false);
+    setBarcodeLoading(true);
+    try {
+      const result = await lookupBarcode(code);
+      if (!result.found) {
+        const message =
+          result.reason === 'not_found'
+            ? '该商品未收录（国产商品覆盖有限），可以改用拍照识别或手动录入。'
+            : result.reason === 'no_nutrition'
+            ? '查到了商品，但缺少营养数据，建议改用拍照识别。'
+            : result.reason === 'invalid'
+            ? '条码格式不正确，需为 8-14 位数字。'
+            : '网络异常，请稍后重试。';
+        Alert.alert('查询失败', message);
+        return;
+      }
+
+      const item = productToFoodItem(result.product);
+      setItems((prev) => [...prev, item]);
+      setAmountTexts((prev) => [...prev, String(item.amount)]);
+      setNote((prev) =>
+        prev ||
+        `条码 ${result.product.barcode} · 每 100g ${result.product.per100g.calories} kcal，已按 ${
+          result.product.servingGrams ?? 100
+        }g 折算`
+      );
+    } catch (e) {
+      Alert.alert('查询失败', e instanceof Error ? e.message : '请稍后重试');
+    } finally {
+      setBarcodeLoading(false);
+    }
   };
 
   // AI 重新校准：以当前结果为基础，按用户补充说明重新估算
@@ -273,6 +312,18 @@ export default function FoodScanScreen({ navigation }: any) {
                 {isRecording ? '停止' : '语音'}
               </Button>
             </View>
+            <Button
+              mode="outlined"
+              icon="barcode-scan"
+              onPress={() => setBarcodeVisible(true)}
+              loading={barcodeLoading}
+              disabled={barcodeLoading}
+              style={styles.barcodeButton}
+              textColor={theme.colors.primary}
+              labelStyle={styles.actionLabel}
+            >
+              扫条形码（包装食品）
+            </Button>
           </Card.Content>
         </Card>
 
@@ -474,6 +525,12 @@ export default function FoodScanScreen({ navigation }: any) {
           热量与份量为 AI 估算值，仅供参考，实际请以称重或包装标签为准。
         </Text>
       </ScrollView>
+
+      <BarcodeScanDialog
+        visible={barcodeVisible}
+        onDismiss={() => setBarcodeVisible(false)}
+        onDetected={(code) => { void handleBarcodeDetected(code); }}
+      />
     </View>
   );
 }
@@ -543,6 +600,10 @@ const styles = StyleSheet.create({
   actionLabel: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  barcodeButton: {
+    marginTop: 10,
+    borderRadius: 10,
   },
   centerBox: {
     alignItems: 'center',

@@ -270,12 +270,13 @@ export interface NutritionFacts {
   fat?: number;     // g
 }
 
-// 单个食物条目（AI 识别或手动录入）
+// 单个食物条目（AI 识别、条码查询或手动录入）
 export interface FoodItem extends NutritionFacts {
   name: string;
   amount: number;                                // 数量
   unit: 'g' | 'ml' | 'piece' | 'bowl';           // 单位
   confidence: number;                            // 识别置信度 0-1
+  barcode?: string;                              // 来自条形码查询时记录条码
 }
 
 // 一条饮食记录（对应一餐）
