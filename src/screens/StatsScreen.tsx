@@ -1,10 +1,18 @@
 import React, { useMemo, useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
-import { Text, Card, Button, Avatar, Divider, TouchableRipple } from 'react-native-paper';
+import { Text, Card, Button, Avatar, Divider, TouchableRipple, SegmentedButtons } from 'react-native-paper';
 import { LineChart } from 'react-native-chart-kit';
 import { useAppStore } from '../store';
 import { rangeLabels, Range } from './StatsDetailScreen';
 import { theme, cardStyle, cardSpacing, pagePadding } from '../theme';
+import { getWeightTrend } from '../utils/bodyTrend';
+import { buildDailyNutrition } from '../utils/nutrition';
+import {
+  activityFactorFromRecords,
+  buildNutritionTarget,
+  evaluateMacros,
+  statusColor,
+} from '../utils/nutritionTargets';
 
 // range 起始时间戳（与 StatsDetailScreen 的 getRangeStart 保持一致）
 function rangeStartMs(range: Range): number {
@@ -19,9 +27,12 @@ function rangeStartMs(range: Range): number {
   return new Date(today.getFullYear(), today.getMonth() - 11, 1).getTime();
 }
 
+type NutritionMetric = 'calories' | 'protein' | 'carbs' | 'fat' | 'proteinPerKg';
+
 export default function StatsScreen({ navigation }: any) {
-  const { workoutRecords, exercises, dailyActivities, foodLogs, userProfile, getNutritionStats } = useAppStore();
+  const { workoutRecords, exercises, dailyActivities, foodLogs, userProfile, getNutritionStats, bodyMeasurements, calibration } = useAppStore();
   const [range, setRange] = useState<Range>('week');
+  const [nutritionMetric, setNutritionMetric] = useState<NutritionMetric>('calories');
   const rStart = rangeStartMs(range);
   const { width: screenWidth } = useWindowDimensions();
 
@@ -94,26 +105,54 @@ export default function StatsScreen({ navigation }: any) {
   const totalDistance = rangeActivities.reduce((sum, a) => sum + a.distanceKm, 0);
   const avgSteps = rangeActivities.length > 0 ? Math.round(totalSteps / rangeActivities.length) : 0;
 
-  // ── 饮食摄入趋势（近 7 天）──
-  const last7 = useMemo(() => {
-    const days: { date: string; label: string; calories: number }[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
-      const calories = foodLogs
-        .filter(l => l.date === dateStr)
-        .reduce((sum, l) => sum + (l.total?.calories || 0), 0);
-      days.push({ date: dateStr, label: `${d.getMonth() + 1}/${d.getDate()}`, calories });
-    }
-    return days;
-  }, [foodLogs]);
+  // ── 饮食营养（按天）──
+  const bodyWeight = getWeightTrend(bodyMeasurements) ?? userProfile?.weight;
+  const nutritionDays = range === 'week' ? 7 : 30;
 
-  const nutritionStats = useMemo(() => getNutritionStats(7), [foodLogs]);
-  const hasFoodData = last7.some(d => d.calories > 0);
-  const avgProteinPerKg = userProfile && userProfile.weight > 0
-    ? Math.round((nutritionStats.avgProtein / userProfile.weight) * 10) / 10
-    : 0;
+  const dailyNutrition = useMemo(
+    () => buildDailyNutrition({ logs: foodLogs, days: nutritionDays, bodyWeight }),
+    [foodLogs, nutritionDays, bodyWeight]
+  );
+  const nutritionStats = useMemo(() => getNutritionStats(nutritionDays), [foodLogs, nutritionDays]);
+  const hasFoodData = dailyNutrition.some((d) => d.mealCount > 0);
+  const avgProteinPerKg =
+    bodyWeight && bodyWeight > 0 ? Math.round((nutritionStats.avgProtein / bodyWeight) * 10) / 10 : 0;
+
+  const metricValues = dailyNutrition.map((d) =>
+    nutritionMetric === 'proteinPerKg' ? d.proteinPerKg ?? 0 : d[nutritionMetric]
+  );
+  const metricLabels = dailyNutrition.map((d, i) =>
+    nutritionDays <= 7 || i % 5 === 0 ? d.label : ''
+  );
+
+  // 营养目标：目标类型（减脂/增肌/重组）+ 体重 + TDEE 推导，再对日均摄入做高低校验
+  const nutritionTarget = useMemo(
+    () =>
+      buildNutritionTarget({
+        profile: userProfile,
+        bodyWeight,
+        activityFactor: activityFactorFromRecords(workoutRecords),
+        tdeeFactor: calibration?.tdeeFactor,
+      }),
+    [userProfile, bodyWeight, workoutRecords, calibration]
+  );
+
+  const macroChecks = useMemo(
+    () =>
+      nutritionTarget
+        ? evaluateMacros(
+            {
+              calories: nutritionStats.avgCalories,
+              protein: nutritionStats.avgProtein,
+              carbs: nutritionStats.avgCarbs,
+              fat: nutritionStats.avgFat,
+            },
+            nutritionTarget
+          )
+        : [],
+    [nutritionTarget, nutritionStats]
+  );
+
   const chartWidth = Math.max(240, screenWidth - 64);
   const chartConfig = {
     backgroundGradientFrom: '#FFFFFF',
@@ -227,61 +266,174 @@ export default function StatsScreen({ navigation }: any) {
         </TouchableRipple>
       </Card>
 
-      {/* 饮食摄入趋势 */}
+      {/* 饮食营养：按天查看三大营养与每公斤蛋白 */}
       {hasFoodData && (
         <Card style={styles.card}>
-          <TouchableRipple onPress={() => navigation.navigate('FoodHistory')} borderless>
-            <Card.Content>
-              <View style={styles.sectionHeader}>
-                <Avatar.Icon size={24} icon="food-apple" style={styles.sectionIcon} color={theme.colors.warning} />
-                <Text style={styles.sectionTitle}>近 7 天摄入</Text>
-                <View style={styles.chevronWrap}>
-                  <Avatar.Icon size={16} icon="chevron-right" style={styles.chevron} color={theme.colors.textTertiary} />
-                  <Text style={styles.tapHint}>查看记录</Text>
-                </View>
-              </View>
+          <Card.Content>
+            <View style={styles.sectionHeader}>
+              <Avatar.Icon size={24} icon="food-apple" style={styles.sectionIcon} color={theme.colors.warning} />
+              <Text style={styles.sectionTitle}>饮食营养（按天）</Text>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('FoodHistory')}
+                activeOpacity={0.7}
+                style={styles.chevronWrap}
+              >
+                <Text style={styles.tapHint}>查看记录</Text>
+                <Avatar.Icon size={16} icon="chevron-right" style={styles.chevron} color={theme.colors.textTertiary} />
+              </TouchableOpacity>
+            </View>
 
-              <View style={styles.weekStats}>
-                <View style={styles.weekStat}>
-                  <Text style={styles.weekNumber} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                    {nutritionStats.avgCalories}
-                  </Text>
-                  <Text style={styles.weekLabel}>日均(kcal)</Text>
-                </View>
-                <View style={styles.divider} />
-                <View style={styles.weekStat}>
-                  <Text style={styles.weekNumber} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                    {nutritionStats.days}
-                  </Text>
-                  <Text style={styles.weekLabel}>记录天数</Text>
-                </View>
-                <View style={styles.divider} />
-                <View style={styles.weekStat}>
-                  <Text style={styles.weekNumber} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                    {avgProteinPerKg}
-                  </Text>
-                  <Text style={styles.weekLabel}>蛋白(g/kg)</Text>
-                </View>
+            <View style={styles.weekStats}>
+              <View style={styles.weekStat}>
+                <Text style={styles.weekNumber} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                  {nutritionStats.avgCalories}
+                </Text>
+                <Text style={styles.weekLabel}>日均(kcal)</Text>
               </View>
+              <View style={styles.divider} />
+              <View style={styles.weekStat}>
+                <Text style={styles.weekNumber} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                  {nutritionStats.days}
+                </Text>
+                <Text style={styles.weekLabel}>记录天数</Text>
+              </View>
+              <View style={styles.divider} />
+              <View style={styles.weekStat}>
+                <Text style={styles.weekNumber} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                  {avgProteinPerKg}
+                </Text>
+                <Text style={styles.weekLabel}>日均蛋白(g/kg)</Text>
+              </View>
+            </View>
 
-              <LineChart
-                data={{
-                  labels: last7.map(d => d.label),
-                  datasets: [{ data: last7.map(d => d.calories) }],
-                }}
-                width={chartWidth}
-                height={180}
-                chartConfig={chartConfig}
-                bezier
-                fromZero
-                withShadow={false}
-                withInnerLines
-                withOuterLines={false}
-                yAxisSuffix=""
-                style={styles.chart}
-              />
-            </Card.Content>
-          </TouchableRipple>
+            {nutritionTarget && (
+              <View style={styles.targetBox}>
+                <View style={styles.targetHead}>
+                  <Text style={styles.targetTitle}>营养目标 · {nutritionTarget.goalLabel}</Text>
+                  <Text style={styles.targetSub}>
+                    {nutritionTarget.calories} kcal · 蛋白 {nutritionTarget.proteinPerKg}g/kg
+                  </Text>
+                </View>
+
+                {macroChecks.map((c) => (
+                  <View key={c.key} style={styles.checkRow}>
+                    <Text style={styles.checkLabel}>{c.label}</Text>
+                    <View style={styles.checkBarTrack}>
+                      <View
+                        style={[
+                          styles.checkBarFill,
+                          {
+                            width: `${Math.min(1, c.ratio) * 100}%`,
+                            backgroundColor: statusColor(c.status),
+                          },
+                        ]}
+                      />
+                    </View>
+                    <Text style={[styles.checkValue, { color: statusColor(c.status) }]}>
+                      {c.actual}/{c.target} {c.unit}
+                    </Text>
+                  </View>
+                ))}
+
+                <View style={styles.adviceWrap}>
+                  {macroChecks.every((c) => c.status === 'ok') ? (
+                    <Text style={[styles.adviceText, { color: theme.colors.success }]}>
+                      · 三大营养都在目标区间内，保持住
+                    </Text>
+                  ) : (
+                    macroChecks
+                      .filter((c) => c.status !== 'ok')
+                      .slice(0, 3)
+                      .map((c) => (
+                        <Text
+                          key={c.key}
+                          style={[styles.adviceText, { color: statusColor(c.status) }]}
+                        >
+                          · {c.message}
+                        </Text>
+                      ))
+                  )}
+                </View>
+
+                <Text style={styles.targetFoot}>
+                  估算 TDEE {nutritionTarget.tdee} kcal（BMR {nutritionTarget.bmr}）· 按日均摄入校验
+                </Text>
+              </View>
+            )}
+
+            <SegmentedButtons
+              value={nutritionMetric}
+              onValueChange={(v) => setNutritionMetric(v as NutritionMetric)}
+              density="small"
+              buttons={[
+                { value: 'calories', label: '热量' },
+                { value: 'protein', label: '蛋白' },
+                { value: 'carbs', label: '碳水' },
+                { value: 'fat', label: '脂肪' },
+                { value: 'proteinPerKg', label: '蛋白/kg' },
+              ]}
+              style={styles.metricSwitch}
+            />
+
+            <LineChart
+              data={{ labels: metricLabels, datasets: [{ data: metricValues }] }}
+              width={chartWidth}
+              height={180}
+              chartConfig={
+                nutritionMetric === 'proteinPerKg'
+                  ? { ...chartConfig, decimalPlaces: 1 }
+                  : chartConfig
+              }
+              bezier
+              fromZero
+              withShadow={false}
+              withInnerLines
+              withOuterLines={false}
+              style={styles.chart}
+            />
+
+            <Text style={styles.dailyTitle}>
+              每日明细 · 近 {nutritionDays} 天
+              {!bodyWeight ? '（填写体重后可看蛋白/kg）' : ''}
+            </Text>
+
+            {dailyNutrition
+              .filter((d) => d.mealCount > 0)
+              .slice()
+              .reverse()
+              .map((d) => {
+                const issue = nutritionTarget
+                  ? evaluateMacros(d, nutritionTarget).find((c) => c.status !== 'ok')
+                  : undefined;
+                return (
+                  <View key={d.date}>
+                    <View style={styles.dailyRow}>
+                      <View style={styles.dailyLeft}>
+                        <Text style={styles.dailyDate}>
+                          {d.label} {d.weekday}
+                        </Text>
+                        <Text style={styles.dailyMacros}>
+                          蛋白 {d.protein}g · 碳水 {d.carbs}g · 脂肪 {d.fat}g
+                        </Text>
+                      </View>
+                      <View style={styles.dailyRight}>
+                        {issue && (
+                          <Text style={[styles.dailyIssue, { color: statusColor(issue.status) }]}>
+                            {issue.label}
+                            {issue.status === 'high' ? '偏高' : '偏低'}
+                          </Text>
+                        )}
+                        <Text style={styles.dailyValue}>{d.calories} kcal</Text>
+                        {d.proteinPerKg !== undefined && (
+                          <Text style={styles.dailyKg}>{d.proteinPerKg} g/kg</Text>
+                        )}
+                      </View>
+                    </View>
+                    <Divider style={styles.dailyDivider} />
+                  </View>
+                );
+              })}
+          </Card.Content>
         </Card>
       )}
 
@@ -632,6 +784,117 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginLeft: -8,
     borderRadius: 12,
+  },
+  targetBox: {
+    marginTop: 8,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 10,
+  },
+  targetHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  targetTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  targetSub: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+  },
+  checkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  checkLabel: {
+    width: 46,
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+  },
+  checkBarTrack: {
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#E2E8F0',
+    overflow: 'hidden',
+    marginHorizontal: 8,
+  },
+  checkBarFill: {
+    height: 6,
+    borderRadius: 3,
+  },
+  checkValue: {
+    minWidth: 86,
+    textAlign: 'right',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  adviceWrap: {
+    marginTop: 2,
+  },
+  adviceText: {
+    fontSize: 11,
+    lineHeight: 17,
+  },
+  targetFoot: {
+    fontSize: 10,
+    color: theme.colors.textTertiary,
+    marginTop: 6,
+  },
+  dailyIssue: {
+    fontSize: 10,
+    fontWeight: '600',
+    marginBottom: 1,
+  },
+  metricSwitch: {
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  dailyTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.text,
+    marginTop: 10,
+    marginBottom: 2,
+  },
+  dailyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+  },
+  dailyLeft: {
+    flex: 1,
+  },
+  dailyDate: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  dailyMacros: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+    marginTop: 2,
+  },
+  dailyRight: {
+    alignItems: 'flex-end',
+  },
+  dailyValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.colors.primary,
+  },
+  dailyKg: {
+    fontSize: 11,
+    color: theme.colors.textTertiary,
+    marginTop: 2,
+  },
+  dailyDivider: {
+    backgroundColor: '#F1F5F9',
   },
   muscleBar: {
     flexDirection: 'row',

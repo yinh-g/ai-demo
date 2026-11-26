@@ -4,6 +4,14 @@ import { Text, Card, Avatar, IconButton, Divider, Button, Chip } from 'react-nat
 import { useAppStore } from '../store';
 import { theme, cardStyle, pagePadding } from '../theme';
 import { FoodLog, MealType } from '../types';
+import { getWeightTrend } from '../utils/bodyTrend';
+import { macrosOfLog, macroEnergyShare, sumMacros } from '../utils/nutrition';
+import {
+  activityFactorFromRecords,
+  buildNutritionTarget,
+  evaluateMacros,
+  statusColor,
+} from '../utils/nutritionTargets';
 
 const MEAL_LABELS: Record<MealType, string> = {
   breakfast: '早餐',
@@ -46,9 +54,21 @@ interface DayGroup {
 }
 
 export default function FoodHistoryScreen({ navigation }: any) {
-  const { foodLogs, deleteFoodLog, getNutritionStats } = useAppStore();
+  const { foodLogs, deleteFoodLog, getNutritionStats, userProfile, bodyMeasurements, workoutRecords, calibration } = useAppStore();
   const stats = getNutritionStats(7);
   const [expandedDate, setExpandedDate] = useState<string | null>(todayStr());
+
+  // 蛋白 / kg 需要体重：优先用最近体重的 7 日均值，回退到资料里的体重
+  const bodyWeight = getWeightTrend(bodyMeasurements) ?? userProfile?.weight;
+  const avgProteinPerKg = bodyWeight && bodyWeight > 0 ? round1(stats.avgProtein / bodyWeight) : 0;
+
+  // 每日营养目标（用于标注当天某一餐/整天的营养偏差）
+  const dailyTarget = buildNutritionTarget({
+    profile: userProfile,
+    bodyWeight,
+    activityFactor: activityFactorFromRecords(workoutRecords),
+    tdeeFactor: calibration?.tdeeFactor,
+  });
 
   const groups = useMemo<DayGroup[]>(() => {
     const map = new Map<string, FoodLog[]>();
@@ -60,17 +80,15 @@ export default function FoodHistoryScreen({ navigation }: any) {
 
     return Array.from(map.entries())
       .map(([date, logs]) => {
-        let calories = 0;
-        let protein = 0;
-        let carbs = 0;
-        let fat = 0;
-        logs.forEach((l) => {
-          calories += l.total?.calories || 0;
-          protein += l.total?.protein || 0;
-          carbs += l.total?.carbs || 0;
-          fat += l.total?.fat || 0;
-        });
-        return { date, logs, calories, protein, carbs, fat };
+        const m = sumMacros(logs);
+        return {
+          date,
+          logs,
+          calories: m.calories,
+          protein: m.protein,
+          carbs: m.carbs,
+          fat: m.fat,
+        };
       })
       .sort((a, b) => (a.date < b.date ? 1 : -1));
   }, [foodLogs]);
@@ -137,7 +155,17 @@ export default function FoodHistoryScreen({ navigation }: any) {
               <Text style={styles.macroValue}>{round1(stats.avgFat)}g</Text>
               <Text style={styles.macroLabel}>脂肪</Text>
             </View>
+            <View style={styles.macroDivider} />
+            <View style={styles.macroItem}>
+              <Text style={styles.macroValue}>{avgProteinPerKg}</Text>
+              <Text style={styles.macroLabel}>蛋白(g/kg)</Text>
+            </View>
           </View>
+          <Text style={styles.summaryFoot}>
+            {bodyWeight
+              ? `按体重 ${round1(bodyWeight)}kg 计算 · 展开下方每天可看当日与每餐明细`
+              : '填写体重后可计算每天每公斤蛋白摄入'}
+          </Text>
         </Card.Content>
       </Card>
 
@@ -145,6 +173,12 @@ export default function FoodHistoryScreen({ navigation }: any) {
       {groups.map((group) => {
         const isOpen = expandedDate === group.date;
         const isToday = group.date === todayStr();
+        const share = macroEnergyShare(group);
+        const dayProteinPerKg =
+          bodyWeight && bodyWeight > 0 ? round1(group.protein / bodyWeight) : undefined;
+        const issue = dailyTarget
+          ? evaluateMacros(group, dailyTarget).find((c) => c.status !== 'ok')
+          : undefined;
         return (
           <Card key={group.date} style={styles.card}>
             <TouchableOpacity
@@ -161,7 +195,18 @@ export default function FoodHistoryScreen({ navigation }: any) {
                   </View>
                   <Text style={styles.dayMeta}>
                     {group.logs.length} 餐 · {Math.round(group.calories)} kcal
+                    {dayProteinPerKg !== undefined ? ` · 蛋白 ${dayProteinPerKg}g/kg` : ''}
                   </Text>
+                  <Text style={styles.dayMacros}>
+                    蛋白 {round1(group.protein)}g · 碳水 {round1(group.carbs)}g · 脂肪 {round1(group.fat)}g
+                  </Text>
+                  {issue && (
+                    <Text style={[styles.dayIssue, { color: statusColor(issue.status) }]}>
+                      {issue.label}
+                      {issue.status === 'high' ? '偏高' : '偏低'} · 目标 {issue.target}
+                      {issue.unit}
+                    </Text>
+                  )}
                 </View>
                 <IconButton
                   icon={isOpen ? 'chevron-up' : 'chevron-down'}
@@ -175,37 +220,48 @@ export default function FoodHistoryScreen({ navigation }: any) {
             {isOpen && (
               <Card.Content style={styles.dayBody}>
                 <Divider style={styles.divider} />
-                {group.logs.map((log) => (
-                  <View key={log.id} style={styles.mealBlock}>
-                    <View style={styles.mealHeader}>
-                      <Avatar.Icon
-                        size={22}
-                        icon={MEAL_ICONS[log.mealType]}
-                        style={{ backgroundColor: theme.colors.primaryLight }}
-                        color={theme.colors.primary}
-                      />
-                      <Text style={styles.mealName}>{MEAL_LABELS[log.mealType]}</Text>
-                      <Text style={styles.mealCalories}>{Math.round(log.total?.calories || 0)} kcal</Text>
-                      <IconButton
-                        icon="trash-can-outline"
-                        size={18}
-                        iconColor={theme.colors.textTertiary}
-                        onPress={() => handleDelete(log)}
-                        style={{ margin: 0 }}
-                      />
+                <Text style={styles.dayEnergy}>
+                  供能占比：蛋白 {share.protein}% · 碳水 {share.carbs}% · 脂肪 {share.fat}%
+                </Text>
+                {group.logs.map((log) => {
+                  const meal = macrosOfLog(log);
+                  return (
+                    <View key={log.id} style={styles.mealBlock}>
+                      <View style={styles.mealHeader}>
+                        <Avatar.Icon
+                          size={22}
+                          icon={MEAL_ICONS[log.mealType]}
+                          style={{ backgroundColor: theme.colors.primaryLight }}
+                          color={theme.colors.primary}
+                        />
+                        <Text style={styles.mealName}>{MEAL_LABELS[log.mealType]}</Text>
+                        <Text style={styles.mealCalories}>{Math.round(meal.calories)} kcal</Text>
+                        <IconButton
+                          icon="trash-can-outline"
+                          size={18}
+                          iconColor={theme.colors.textTertiary}
+                          onPress={() => handleDelete(log)}
+                          style={{ margin: 0 }}
+                        />
+                      </View>
+                      <View style={styles.mealMacroRow}>
+                        <Text style={styles.mealMacro}>蛋白 {round1(meal.protein)}g</Text>
+                        <Text style={styles.mealMacro}>碳水 {round1(meal.carbs)}g</Text>
+                        <Text style={styles.mealMacro}>脂肪 {round1(meal.fat)}g</Text>
+                      </View>
+                      <View style={styles.foodList}>
+                        {log.items.map((item, index) => (
+                          <View key={`${log.id}-${index}`} style={styles.foodRow}>
+                            <Text style={styles.foodName} numberOfLines={1}>{item.name}</Text>
+                            <Text style={styles.foodMeta}>
+                              {item.amount}{item.unit} · {item.calories} kcal
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
                     </View>
-                    <View style={styles.foodList}>
-                      {log.items.map((item, index) => (
-                        <View key={`${log.id}-${index}`} style={styles.foodRow}>
-                          <Text style={styles.foodName} numberOfLines={1}>{item.name}</Text>
-                          <Text style={styles.foodMeta}>
-                            {item.amount}{item.unit} · {item.calories} kcal
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-                ))}
+                  );
+                })}
               </Card.Content>
             )}
           </Card>
@@ -295,6 +351,11 @@ const styles = StyleSheet.create({
     height: 24,
     backgroundColor: 'rgba(255,255,255,0.2)',
   },
+  summaryFoot: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.75)',
+    marginTop: 8,
+  },
   dayHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -328,11 +389,26 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
     marginTop: 3,
   },
+  dayMacros: {
+    fontSize: 11,
+    color: theme.colors.textTertiary,
+    marginTop: 2,
+  },
+  dayIssue: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+  },
   dayBody: {
     paddingTop: 0,
   },
   divider: {
     backgroundColor: theme.colors.border,
+    marginBottom: 8,
+  },
+  dayEnergy: {
+    fontSize: 11,
+    color: theme.colors.textTertiary,
     marginBottom: 8,
   },
   mealBlock: {
@@ -353,6 +429,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: theme.colors.primary,
+  },
+  mealMacroRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginLeft: 28,
+    marginTop: 2,
+  },
+  mealMacro: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
   },
   foodList: {
     marginLeft: 28,
