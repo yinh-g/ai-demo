@@ -305,6 +305,11 @@ export default function BodyDataScreen({ navigation }: any) {
             activeOutlineColor="#6366F1"
             left={<TextInput.Icon icon="food-steak" color="#94A3B8" />}
           />
+          <Text style={styles.inputHint}>
+            {parseFloat(formData.proteinIntake) > 5
+              ? '按 g/kg 填写（如 1.6），不是每天总克数'
+              : '常见范围 1.2 ~ 2.2 g/kg'}
+          </Text>
           <TextInput
             label="平均睡眠时长 (小时) *"
             value={formData.sleepHours}
@@ -441,6 +446,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     marginBottom: 10,
     fontSize: 15,
+  },
+  inputHint: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: -6,
+    marginBottom: 10,
   },
   label: {
     fontSize: 14,

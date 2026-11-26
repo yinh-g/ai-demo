@@ -9,8 +9,9 @@ export type NutritionGoal = 'cut' | 'bulk' | 'recomp' | 'maintain';
 export interface NutritionTarget {
   goal: NutritionGoal;
   goalLabel: string;
+  weight: number;    // 计算所用体重（kg）
   calories: number;
-  protein: number;   // g
+  protein: number;   // 每日总克数
   carbs: number;     // g
   fat: number;       // g
   proteinPerKg: number;
@@ -27,6 +28,43 @@ const GOAL_META: Record<
   bulk: { label: '增肌', kcalFactor: 1.1, proteinPerKg: 1.8 },
   maintain: { label: '维持', kcalFactor: 1.0, proteinPerKg: 1.6 },
 };
+
+const MIN_WEIGHT = 30;
+const MAX_WEIGHT = 300;
+
+// 体重合理性校验：超出 30-300kg 视为脏数据（单位填错、多打一个 0 等）
+export function safeBodyWeight(
+  primary?: number | null,
+  fallback?: number | null
+): number | undefined {
+  const ok = (v?: number | null): v is number =>
+    typeof v === 'number' && Number.isFinite(v) && v >= MIN_WEIGHT && v <= MAX_WEIGHT;
+  if (ok(primary)) return primary;
+  if (ok(fallback)) return fallback;
+  return undefined;
+}
+
+// 蛋白目标解析：兼容把「每日总克数」误填进 g/kg 字段的情况
+// <=5 视为 g/kg；>=30 视为每日总克数；中间模糊值按 g/kg 收敛到 4g/kg 上限
+function resolveProtein(
+  raw: number,
+  weight: number,
+  defaultPerKg: number
+): { grams: number; perKg: number } {
+  if (!Number.isFinite(raw) || raw <= 0) {
+    return { grams: Math.round(weight * defaultPerKg), perKg: defaultPerKg };
+  }
+  if (raw <= 5) {
+    const perKg = Math.min(4, Math.max(0.8, raw));
+    return { grams: Math.round(weight * perKg), perKg };
+  }
+  if (raw >= 30) {
+    const grams = Math.min(400, Math.max(30, raw));
+    return { grams: Math.round(grams), perKg: Math.round((grams / weight) * 10) / 10 };
+  }
+  const perKg = Math.min(4, raw);
+  return { grams: Math.round(weight * perKg), perKg };
+}
 
 // 目标判定：同时设了减脂与增肌目标视为身体重组；没设目标时按体脂率兜底
 export function detectGoal(profile: UserProfile, bodyFat?: number): NutritionGoal {
@@ -78,8 +116,8 @@ export function buildNutritionTarget(params: {
   } = params;
 
   if (!profile) return null;
-  const weight = bodyWeight && bodyWeight > 0 ? bodyWeight : profile.weight;
-  if (!weight || weight <= 0) return null;
+  const weight = safeBodyWeight(bodyWeight, profile.weight);
+  if (!weight) return null;
 
   const goal = detectGoal(profile, bodyFat);
   const meta = GOAL_META[goal];
@@ -87,15 +125,17 @@ export function buildNutritionTarget(params: {
   const bmr = Math.round(calculateBMR(weight, profile.height, profile.age, profile.gender));
   const tdee = Math.round(bmr * activityFactor * (tdeeFactor > 0 ? tdeeFactor : 1));
 
-  // 用户手填的目标热量优先，否则按 TDEE × 目标系数
+  // 手填热量仅在 800-6000 kcal 的合理区间内采用
   const manualCalories = profile.dailyCalorieIntake ?? 0;
-  const calories =
-    manualCalories > 0 ? Math.round(manualCalories) : Math.round(tdee * meta.kcalFactor);
+  const useManualCalories = manualCalories >= 800 && manualCalories <= 6000;
+  const calories = useManualCalories
+    ? Math.round(manualCalories)
+    : Math.round(tdee * meta.kcalFactor);
 
-  // 用户手填的蛋白目标（g/kg）优先
-  const manualProteinPerKg = profile.proteinIntake ?? 0;
-  const proteinPerKg = manualProteinPerKg > 0 ? manualProteinPerKg : meta.proteinPerKg;
-  const protein = Math.round(weight * proteinPerKg);
+  // 手填蛋白：兼容 g/kg 与「每日总克数」两种填法，异常值不会放大成几千克
+  const proteinTarget = resolveProtein(profile.proteinIntake ?? 0, weight, meta.proteinPerKg);
+  const proteinPerKg = proteinTarget.perKg;
+  const protein = proteinTarget.grams;
 
   // 脂肪取 25% 热量，且不低于 0.6g/kg
   const fat = Math.round(Math.max((calories * 0.25) / 9, weight * 0.6));
@@ -106,6 +146,7 @@ export function buildNutritionTarget(params: {
   return {
     goal,
     goalLabel: meta.label,
+    weight,
     calories,
     protein,
     carbs,

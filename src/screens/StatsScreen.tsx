@@ -11,6 +11,7 @@ import {
   activityFactorFromRecords,
   buildNutritionTarget,
   evaluateMacros,
+  safeBodyWeight,
   statusColor,
 } from '../utils/nutritionTargets';
 
@@ -106,7 +107,7 @@ export default function StatsScreen({ navigation }: any) {
   const avgSteps = rangeActivities.length > 0 ? Math.round(totalSteps / rangeActivities.length) : 0;
 
   // ── 饮食营养（按天）──
-  const bodyWeight = getWeightTrend(bodyMeasurements) ?? userProfile?.weight;
+  const bodyWeight = safeBodyWeight(getWeightTrend(bodyMeasurements), userProfile?.weight);
   const nutritionDays = range === 'week' ? 7 : 30;
 
   const dailyNutrition = useMemo(
@@ -310,10 +311,12 @@ export default function StatsScreen({ navigation }: any) {
               <View style={styles.targetBox}>
                 <View style={styles.targetHead}>
                   <Text style={styles.targetTitle}>营养目标 · {nutritionTarget.goalLabel}</Text>
-                  <Text style={styles.targetSub}>
-                    {nutritionTarget.calories} kcal · 蛋白 {nutritionTarget.proteinPerKg}g/kg
-                  </Text>
+                  <Text style={styles.targetSub}>{nutritionTarget.weight}kg</Text>
                 </View>
+                <Text style={styles.targetDetail}>
+                  {nutritionTarget.calories} kcal · 蛋白 {nutritionTarget.protein}g（
+                  {nutritionTarget.proteinPerKg}g/kg）
+                </Text>
 
                 {macroChecks.map((c) => (
                   <View key={c.key} style={styles.checkRow}>
@@ -356,9 +359,16 @@ export default function StatsScreen({ navigation }: any) {
                 </View>
 
                 <Text style={styles.targetFoot}>
-                  估算 TDEE {nutritionTarget.tdee} kcal（BMR {nutritionTarget.bmr}）· 按日均摄入校验
+                  估算 TDEE {nutritionTarget.tdee} kcal · BMR {nutritionTarget.bmr} · 按体重{' '}
+                  {nutritionTarget.weight}kg 与日均摄入校验
                 </Text>
               </View>
+            )}
+
+            {!nutritionTarget && userProfile && (
+              <Text style={styles.targetWarn}>
+                体重数据异常（当前 {userProfile.weight}kg），无法计算营养目标，请到「身体数据」检查
+              </Text>
             )}
 
             <SegmentedButtons
@@ -805,6 +815,17 @@ const styles = StyleSheet.create({
   targetSub: {
     fontSize: 11,
     color: theme.colors.textSecondary,
+  },
+  targetDetail: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+    marginBottom: 8,
+  },
+  targetWarn: {
+    fontSize: 11,
+    color: theme.colors.warning,
+    marginTop: 8,
+    lineHeight: 17,
   },
   checkRow: {
     flexDirection: 'row',

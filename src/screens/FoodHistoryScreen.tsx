@@ -10,6 +10,7 @@ import {
   activityFactorFromRecords,
   buildNutritionTarget,
   evaluateMacros,
+  safeBodyWeight,
   statusColor,
 } from '../utils/nutritionTargets';
 
@@ -59,7 +60,7 @@ export default function FoodHistoryScreen({ navigation }: any) {
   const [expandedDate, setExpandedDate] = useState<string | null>(todayStr());
 
   // 蛋白 / kg 需要体重：优先用最近体重的 7 日均值，回退到资料里的体重
-  const bodyWeight = getWeightTrend(bodyMeasurements) ?? userProfile?.weight;
+  const bodyWeight = safeBodyWeight(getWeightTrend(bodyMeasurements), userProfile?.weight);
   const avgProteinPerKg = bodyWeight && bodyWeight > 0 ? round1(stats.avgProtein / bodyWeight) : 0;
 
   // 每日营养目标（用于标注当天某一餐/整天的营养偏差）
