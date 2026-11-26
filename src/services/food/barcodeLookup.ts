@@ -1,6 +1,8 @@
 import { FoodItem } from '../../types';
+import { getSupabase, isSupabaseConfigured } from '../supabase';
 
 // 条形码 → 商品营养查询（OpenFoodFacts 免费版，无需 API Key）
+// 双通道：手机直连 OpenFoodFacts + Supabase 边缘函数代理（海外机房访问更稳），谁先返回用谁。
 // 局限：只覆盖包装食品，国内本土品牌收录率一般；查不到时需要降级到拍照/手动录入。
 
 export interface NutritionPer100g {
@@ -22,10 +24,14 @@ export interface BarcodeProduct {
 
 export type BarcodeLookupResult =
   | { found: true; product: BarcodeProduct }
-  | { found: false; reason: 'invalid' | 'not_found' | 'no_nutrition' | 'network' };
+  | {
+      found: false;
+      reason: 'invalid' | 'not_found' | 'no_nutrition' | 'network';
+      detail?: string; // 仅用于日志排查
+    };
 
-// 主站优先，国内镜像兜底
-const HOSTS = ['https://world.openfoodfacts.org', 'https://cn.openfoodfacts.org'];
+const DIRECT_HOST = 'https://world.openfoodfacts.org';
+const PROXY_FUNCTION = 'lookup-barcode';
 const FIELDS = [
   'product_name',
   'product_name_zh',
@@ -37,7 +43,8 @@ const FIELDS = [
   'image_front_small_url',
 ].join(',');
 
-const TIMEOUT_MS = 7000;
+// 移动网络访问境外站点常见 8-12 秒，超时给足
+const DIRECT_TIMEOUT_MS = 12000;
 const USER_AGENT = 'FitTrack/1.0 (Expo; barcode lookup)';
 
 // 结果缓存：成功与“确实没有”都缓存，网络错误不缓存以便重试
@@ -67,62 +74,136 @@ function pickKcalPer100g(nutriments: Record<string, unknown>): number | undefine
   return undefined;
 }
 
-async function fetchOne(host: string, barcode: string): Promise<BarcodeLookupResult | null> {
+// 把 OpenFoodFacts 原始 product 规范化（服务端代理返回同样结构）
+export function normalizeOffProduct(
+  barcode: string,
+  raw: Record<string, unknown>
+): BarcodeLookupResult {
+  const nutriments = (raw.nutriments as Record<string, unknown>) || {};
+  const calories = pickKcalPer100g(nutriments);
+  const name = String(raw.product_name_zh || raw.product_name || '').trim();
+  const brand = typeof raw.brands === 'string' ? raw.brands.split(',')[0].trim() : '';
+
+  if (!name && !brand) return { found: false, reason: 'not_found' };
+  if (calories === undefined) return { found: false, reason: 'no_nutrition' };
+
+  const serving = num(raw.serving_quantity);
+
+  return {
+    found: true,
+    product: {
+      barcode,
+      name: name || brand,
+      brand: brand || undefined,
+      quantity: typeof raw.quantity === 'string' ? raw.quantity : undefined,
+      servingGrams: serving !== undefined && serving > 0 ? serving : undefined,
+      imageUrl: typeof raw.image_front_small_url === 'string' ? raw.image_front_small_url : undefined,
+      per100g: {
+        calories: round1(calories),
+        protein: num(nutriments['proteins_100g']),
+        carbs: num(nutriments['carbohydrates_100g']),
+        fat: num(nutriments['fat_100g']),
+      },
+    },
+  };
+}
+
+type Attempt =
+  | { ok: true; result: BarcodeLookupResult }
+  | { ok: false; detail: string };
+
+async function attemptDirect(barcode: string): Promise<Attempt> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), DIRECT_TIMEOUT_MS);
   try {
-    const url = `${host}/api/v2/product/${barcode}.json?fields=${FIELDS}`;
+    const url = `${DIRECT_HOST}/api/v2/product/${barcode}.json?fields=${FIELDS}`;
     const res = await fetch(url, {
       headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
       signal: controller.signal,
     });
-    if (!res.ok) return null;
+    if (!res.ok) return { ok: false, detail: `direct HTTP ${res.status}` };
 
     const data = (await res.json()) as {
       status?: number | string;
       product?: Record<string, unknown>;
     } | null;
 
-    const raw = data?.product;
-    if (!raw || data?.status === 0 || data?.status === 'failure') {
-      return { found: false, reason: 'not_found' };
+    if (!data?.product || data.status === 0 || data.status === 'failure') {
+      return { ok: true, result: { found: false, reason: 'not_found' } };
     }
-
-    const nutriments = (raw.nutriments as Record<string, unknown>) || {};
-    const calories = pickKcalPer100g(nutriments);
-    const name = String(raw.product_name_zh || raw.product_name || '').trim();
-    const brand = typeof raw.brands === 'string' ? raw.brands.split(',')[0].trim() : '';
-
-    if (!name && !brand) return { found: false, reason: 'not_found' };
-    if (calories === undefined) return { found: false, reason: 'no_nutrition' };
-
-    const serving = num(raw.serving_quantity);
-
-    return {
-      found: true,
-      product: {
-        barcode,
-        name: name || brand,
-        brand: brand || undefined,
-        quantity: typeof raw.quantity === 'string' ? raw.quantity : undefined,
-        servingGrams: serving !== undefined && serving > 0 ? serving : undefined,
-        imageUrl: typeof raw.image_front_small_url === 'string' ? raw.image_front_small_url : undefined,
-        per100g: {
-          calories: round1(calories),
-          protein: num(nutriments['proteins_100g']),
-          carbs: num(nutriments['carbohydrates_100g']),
-          fat: num(nutriments['fat_100g']),
-        },
-      },
-    };
-  } catch {
-    return null;
+    return { ok: true, result: normalizeOffProduct(barcode, data.product) };
+  } catch (e) {
+    const name = (e as { name?: string } | null)?.name;
+    return { ok: false, detail: name === 'AbortError' ? 'direct timeout' : 'direct failed' };
   } finally {
     clearTimeout(timer);
   }
 }
 
-export async function lookupBarcode(raw: string, options?: { force?: boolean }): Promise<BarcodeLookupResult> {
+// 通过 Supabase 边缘函数代理查询：海外机房访问 OpenFoodFacts 更稳定
+async function attemptProxy(barcode: string): Promise<Attempt> {
+  if (!isSupabaseConfigured()) return { ok: false, detail: 'supabase not configured' };
+  try {
+    const { data, error } = await getSupabase().functions.invoke(PROXY_FUNCTION, {
+      body: { barcode },
+    });
+    if (error) {
+      const status = (error as { context?: Response }).context?.status;
+      return { ok: false, detail: `proxy HTTP ${status ?? 'unknown'}` };
+    }
+
+    const payload = data as
+      | {
+          ok?: boolean;
+          product?: BarcodeProduct;
+          reason?: string;
+          error?: string;
+        }
+      | null;
+
+    if (!payload) return { ok: false, detail: 'proxy empty response' };
+    if (payload.ok === false) return { ok: false, detail: `proxy: ${payload.error || 'failed'}` };
+    if (payload.product) return { ok: true, result: { found: true, product: payload.product } };
+
+    const reason = payload.reason === 'no_nutrition' ? 'no_nutrition' : 'not_found';
+    return { ok: true, result: { found: false, reason } };
+  } catch {
+    return { ok: false, detail: 'proxy failed' };
+  }
+}
+
+// 谁先返回有效结果就用谁；两者都失败才返回 null
+function raceFirstSuccess(attempts: Promise<Attempt>[]): Promise<Attempt | null> {
+  return new Promise((resolve) => {
+    let remaining = attempts.length;
+    let settled = false;
+    if (remaining === 0) {
+      resolve(null);
+      return;
+    }
+    attempts.forEach((p) => {
+      p.then((a) => {
+        if (!settled && a.ok) {
+          settled = true;
+          resolve(a);
+        }
+      })
+        .catch(() => {})
+        .finally(() => {
+          remaining -= 1;
+          if (remaining === 0 && !settled) {
+            settled = true;
+            resolve(null);
+          }
+        });
+    });
+  });
+}
+
+export async function lookupBarcode(
+  raw: string,
+  options?: { force?: boolean }
+): Promise<BarcodeLookupResult> {
   const barcode = normalizeBarcode(raw);
   if (!barcode) return { found: false, reason: 'invalid' };
 
@@ -131,18 +212,22 @@ export async function lookupBarcode(raw: string, options?: { force?: boolean }):
     if (hit) return hit;
   }
 
-  let networkFailed = false;
-  for (const host of HOSTS) {
-    const result = await fetchOne(host, barcode);
-    if (result) {
-      cache.set(barcode, result);
-      return result;
-    }
-    networkFailed = true;
+  const attempts = [attemptDirect(barcode), attemptProxy(barcode)];
+  const winner = await raceFirstSuccess(attempts);
+
+  if (winner && winner.ok) {
+    cache.set(barcode, winner.result);
+    return winner.result;
   }
 
-  // 网络问题不入缓存，允许用户重试
-  return { found: false, reason: networkFailed ? 'network' : 'not_found' };
+  // 两个通道都失败：收集原因写日志，返回网络错误（不缓存，允许重试）
+  const all = await Promise.all(attempts);
+  const detail = all
+    .filter((a): a is { ok: false; detail: string } => !a.ok)
+    .map((a) => a.detail)
+    .join(' / ');
+  console.warn('[barcode] lookup failed:', barcode, detail || 'unknown');
+  return { found: false, reason: 'network', detail };
 }
 
 // 把商品转换成 FoodItem：默认按建议份量（缺失时按 100g），热量按份量折算
