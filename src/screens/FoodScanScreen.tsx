@@ -154,15 +154,52 @@ export default function FoodScanScreen({ navigation }: any) {
     try {
       const result = await lookupBarcode(code);
       if (!result.found) {
-        const message =
-          result.reason === 'not_found'
-            ? '该商品未收录（国产商品覆盖有限），可以改用拍照识别或手动录入。'
-            : result.reason === 'no_nutrition'
-            ? '查到了商品，但缺少营养数据，建议改用拍照识别。'
-            : result.reason === 'invalid'
-            ? '条码格式不正确，需为 8-14 位数字。'
-            : '网络异常，请稍后重试。';
-        Alert.alert('查询失败', message);
+        if (result.reason === 'not_found') {
+          Alert.alert(
+            '这个商品没查到',
+            `条码 ${code} 在 OpenFoodFacts 里没有记录，不是扫码失败。\n\n国内商品的收录率本来就不高，包装食品以外的条码（日用品、生鲜）也查不到。\n\n可以改用拍照识别，或按包装上的营养表手动录入。`,
+            [
+              { text: '知道了', style: 'cancel' },
+              { text: '重新扫', onPress: () => setBarcodeVisible(true) },
+              { text: '拍照识别', onPress: () => { void takePhoto(); } },
+            ]
+          );
+          return;
+        }
+
+        if (result.reason === 'no_nutrition') {
+          Alert.alert(
+            '查到了商品，但没有营养数据',
+            `条码 ${code} 对应的商品存在，但数据库里没填热量与三大营养。\n\n建议改用拍照识别，或按包装营养表手动录入。`,
+            [
+              { text: '知道了', style: 'cancel' },
+              { text: '拍照识别', onPress: () => { void takePhoto(); } },
+            ]
+          );
+          return;
+        }
+
+        if (result.reason === 'invalid') {
+          Alert.alert(
+            '条码没读对',
+            '只支持 8-14 位数字的商品条码（EAN/UPC）。请让条形码完整落在取景框内，或手动输入条码数字。',
+            [
+              { text: '知道了', style: 'cancel' },
+              { text: '重新扫', onPress: () => setBarcodeVisible(true) },
+            ]
+          );
+          return;
+        }
+
+        Alert.alert(
+          '连不上商品数据库',
+          '请求没有拿到结果，可能是当前网络访问境外服务不稳定。\n\n可以稍后重试，或直接用拍照识别 / 手动录入。',
+          [
+            { text: '取消', style: 'cancel' },
+            { text: '拍照识别', onPress: () => { void takePhoto(); } },
+            { text: '重试', onPress: () => { void handleBarcodeDetected(code); } },
+          ]
+        );
         return;
       }
 

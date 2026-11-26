@@ -113,6 +113,12 @@ Deno.serve(async (req: Request) => {
         headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
         signal: controller.signal,
       });
+      // v2 接口对未收录商品返回 404，应作为「查无此商品」返回，而不是服务故障
+      if (res.status === 404) {
+        const payload = { ok: true, reason: 'not_found' };
+        writeCache(barcode, payload);
+        return json(payload);
+      }
       if (!res.ok) {
         console.error('lookup-barcode upstream HTTP', res.status);
         return json({ ok: false, error: `上游返回 HTTP ${res.status}` });

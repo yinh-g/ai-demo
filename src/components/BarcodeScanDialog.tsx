@@ -101,7 +101,9 @@ export default function BarcodeScanDialog({ visible, onDismiss, onDetected }: Pr
         </Button>
       </View>
 
-      <Text style={styles.footnote}>仅支持包装食品；商品未收录时可用拍照识别或手动录入</Text>
+      <Text style={styles.footnote}>
+        只支持包装食品的条码（EAN/UPC）。国内商品收录率有限，查不到时可以改用拍照识别或文字描述
+      </Text>
     </Modal>
   );
 }

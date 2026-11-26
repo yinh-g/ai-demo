@@ -121,6 +121,10 @@ async function attemptDirect(barcode: string): Promise<Attempt> {
       headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
       signal: controller.signal,
     });
+    // OpenFoodFacts v2 对「未收录」的商品返回 HTTP 404，这不是网络故障
+    if (res.status === 404) {
+      return { ok: true, result: { found: false, reason: 'not_found' } };
+    }
     if (!res.ok) return { ok: false, detail: `direct HTTP ${res.status}` };
 
     const data = (await res.json()) as {
